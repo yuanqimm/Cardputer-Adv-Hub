@@ -1,0 +1,13 @@
+[
+  {
+    "name": "Demo NEC - replace codes",
+    "protocol": "NEC",
+    "address": "0x00",
+    "repeats": 0,
+    "buttons": [
+      {"label": "Power", "command": "0x45"},
+      {"label": "Volume -", "command": "0x46"},
+      {"label": "Volume +", "command": "0x47"}
+    ]
+  }
+]
