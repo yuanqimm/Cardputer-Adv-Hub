@@ -34,6 +34,7 @@ struct WifiMemory { String ssid, password; };
 WifiMemory wifiMemory[MaxSaved];
 uint8_t wifiMemoryCount = 0;
 bool sshConfigured = false, activeSecured = false;
+bool lastWifiConnected = false;
 char fingerprintText[65] = {}, pinKey[15] = {};
 uint32_t deadline = 0;
 ssh_session session = nullptr;
@@ -230,7 +231,7 @@ void beginWifiConnection(const char* text) {
 }
 }
 namespace SshService {
-void begin() { libssh_begin(); loadSaved(); loadWifiMemory(); WiFi.persistent(false); WiFi.setAutoReconnect(false); }
+void begin() { libssh_begin(); loadSaved(); loadWifiMemory(); WiFi.persistent(false); WiFi.setAutoReconnect(true); lastWifiConnected = WiFi.status() == WL_CONNECTED; }
 void scanWifi() {
     if (!canStart()) return;
     release(); browser = Browser::Wifi; networkCount = networkSelected = 0; WiFi.mode(WIFI_STA); WiFi.scanDelete();
@@ -284,8 +285,9 @@ void connect() {
 }
 void disconnect() {
     if (state == State::Scanning) esp_wifi_scan_stop();
-    WiFi.scanDelete(); release(); wifiPasswordInput.clear(); active = Profile(); activeSecured = false;
-    WiFi.disconnect(false, false); browser = Browser::None; move(State::Idle, "Disconnected; C scan Wi-Fi");
+    WiFi.scanDelete(); release(); wifiPasswordInput.clear(); browser = Browser::None;
+    if (WiFi.status() == WL_CONNECTED) { state = State::WifiReady; mark("Wi-Fi connected; D SSH config"); }
+    else { state = State::Idle; mark("Wi-Fi disconnected; C scan"); }
 }
 void cancel() { disconnect(); }
 bool awaitingTrust() { return state == State::Trust; }
@@ -333,6 +335,8 @@ void editPassword(const InputEvent& event) {
     wifiPasswordInput.append(event.key); changed = true;
 }
 void loop() {
+    const bool wifiNow = WiFi.status() == WL_CONNECTED;
+    if (wifiNow != lastWifiConnected) { lastWifiConnected = wifiNow; changed = true; }
     if (state == State::Scanning) {
         const int result = WiFi.scanComplete();
         if (result == WIFI_SCAN_RUNNING) {

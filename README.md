@@ -17,7 +17,7 @@ platformio device monitor --port COM8 --baud 115200
 | 页面 | 操作 |
 |---|---|
 | 启动器 | W/S、K/J 或 Fn 方向键选择，Enter 进入 |
-| 全部页面 | **Fn+Q 返回首页**；离开 SSH 会断开会话，离开媒体会停止播放 |
+| 全部页面 | **Fn+Q 返回首页**；离开 SSH 会断开 SSH 会话但保留 Wi-Fi，离开媒体会停止播放；顶部三格图标表示 Wi-Fi 已连接，叉号表示未连接 |
 | Keyboard | Fn+M 切换 USB / Bluetooth / 双发，Fn+D 查看诊断，Fn+R 清除全部 BLE 配对 |
 | SSH | C 扫描附近 Wi-Fi，W/S 或 Fn 方向键选择，Enter 连接；陌生加密网络会进入密码输入框；H 打开已成功连接的历史配置；D 直接使用 SD 配置；E 重新输入当前 Wi-Fi 密码；首次遇到主机时校验指纹后按 T 信任并保存 |
 | 音乐 | P 播放/暂停/继续，N/B 下一首/上一首，+/- 音量，V 切换视频 |

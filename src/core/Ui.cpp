@@ -1,4 +1,5 @@
 #include "core/Ui.h"
+#include <WiFi.h>
 
 namespace Ui {
 namespace {
@@ -43,6 +44,17 @@ void header(const char* title) {
     frame.fillRect(0, 0, 240, 18, TFT_DARKGREY);
     frame.setTextColor(TFT_WHITE, TFT_DARKGREY);
     frame.drawString(title, 6, 5);
+    const bool connected = WiFi.status() == WL_CONNECTED;
+    const uint16_t color = connected ? TFT_GREEN : TFT_LIGHTGREY;
+    frame.setColor(color);
+    if (connected) {
+        frame.fillRect(218, 13, 3, 3);
+        frame.fillRect(223, 9, 3, 7);
+        frame.fillRect(228, 5, 3, 11);
+    } else {
+        frame.drawLine(218, 5, 231, 16);
+        frame.drawLine(231, 5, 218, 16);
+    }
 }
 
 void footer(const char* text) {
