@@ -219,7 +219,14 @@ bool verifyKey() {
     return true;
 }
 void beginSsh() {
-    if (ESP.getFreeHeap() < 70000) { fail("Not enough free SSH memory"); return; }
+    const uint32_t freeHeap = ESP.getFreeHeap();
+    // Wi-Fi keeps a sizeable receive buffer while LibSSH allocates its crypto state.
+    // Leave 48 KiB for that state and report the actual value when the guard trips.
+    if (freeHeap < 48000) {
+        static char text[40];
+        snprintf(text, sizeof(text), "SSH memory low: %uK", static_cast<unsigned>(freeHeap / 1024));
+        fail(text); return;
+    }
     session = ssh_new(); if (!session) { fail("Cannot allocate SSH session"); return; }
     const long timeout = 5;
     const int sshPort = active.port; // libssh reads an int, not a uint16_t.
