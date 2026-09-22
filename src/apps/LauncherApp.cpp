@@ -31,6 +31,7 @@ public:
         if(screen_==1 && SshService::connected()) { if(!e.fn || e.code) SshService::sendInput(e); return; }
         if(screen_==1 && SshService::awaitingTrust()) { if(key=='t' && !e.repeat) SshService::trustServer(); return; }
         if(screen_==1 && SshService::enteringPassword()) { SshService::editPassword(e); return; }
+        if(screen_==1 && SshService::editingSsh()) { SshService::editSsh(e); return; }
         if(screen_==0) {
             if(up(e,key)) selected_=(selected_+4)%5;
             else if(down(e,key)) selected_=(selected_+1)%5;
@@ -43,6 +44,7 @@ public:
             if(!e.repeat && key=='h') { SshService::showSaved(); return; }
             if(!e.repeat && key=='d') { SshService::connect(); return; }
             if(!e.repeat && key=='e' && SshService::view()==0) { SshService::changeWifiPassword(); return; }
+            if(!e.repeat && key=='i' && SshService::view()==0) { SshService::beginSshSetup(); return; }
             if(SshService::view()!=0) {
                 if(up(e,key)) SshService::moveSelection(-1);
                 else if(down(e,key)) SshService::moveSelection(1);
@@ -163,11 +165,16 @@ private:
                 Ui::line(50,ssid);
                 Ui::line(70,"Password:"); Ui::line(88,SshService::passwordDisplay(),TFT_YELLOW);
                 Ui::line(104,"Enter: connect  Backspace: edit");
+            } else if(SshService::editingSsh()) {
+                Ui::line(30,SshService::status(),TFT_CYAN);
+                Ui::line(50,SshService::sshFieldName());
+                Ui::line(72,SshService::sshEditDisplay(),TFT_YELLOW);
+                Ui::line(104,"Enter: next/connect  Backspace: edit");
             } else {
                 Ui::line(30,SshService::status(),TFT_CYAN);
                 Ui::line(58,"C: scan Wi-Fi   H: saved");
                 Ui::line(76,"D: connect SD config");
-                Ui::line(94,"E: edit Wi-Fi   W/S: move");
+                Ui::line(94,"I: SSH login   E: edit Wi-Fi");
             }
         }
         Ui::footer("C scan H history Fn+Q home");

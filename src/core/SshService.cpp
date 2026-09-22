@@ -11,7 +11,7 @@
 #include <libssh/libssh.h>
 
 namespace {
-enum class State { Idle, Scanning, Password, Wifi, WifiReady, Connect, Verify, Trust, Authenticate, Open, Pty, Shell, Ready, Error };
+enum class State { Idle, Scanning, Password, SshEdit, Wifi, WifiReady, Connect, Verify, Trust, Authenticate, Open, Pty, Shell, Ready, Error };
 enum class Browser { None, Wifi, Saved };
 constexpr uint8_t MaxWifi = 8;
 constexpr uint8_t MaxSaved = 6;
@@ -30,6 +30,9 @@ Profile active;
 String message = "C: scan Wi-Fi   H: saved";
 String expected;
 WifiPasswordInput wifiPasswordInput;
+enum class SshField : uint8_t { Host, User, Password };
+SshField sshField = SshField::Host;
+String sshEditValue;
 struct WifiMemory { String ssid, password; };
 WifiMemory wifiMemory[MaxSaved];
 uint8_t wifiMemoryCount = 0;
@@ -52,6 +55,11 @@ void release() {
 }
 void fail(const char* text) { release(); move(State::Error, text); }
 bool canStart() { return state == State::Idle || state == State::Error || state == State::WifiReady; }
+void openSshEditor() {
+    sshField = SshField::Host;
+    sshEditValue = active.host;
+    move(State::SshEdit, "Enter SSH host or IP");
+}
 void loadWifiMemory() {
     Preferences prefs;
     if (!prefs.begin("ssh-prof", true)) return;
@@ -334,6 +342,59 @@ void editPassword(const InputEvent& event) {
     if (event.key == '\b') { wifiPasswordInput.backspace(); changed = true; return; }
     wifiPasswordInput.append(event.key); changed = true;
 }
+bool editingSsh() { return state == State::SshEdit; }
+void beginSshSetup() {
+    if (!canStart()) return;
+    if (WiFi.status() != WL_CONNECTED) { mark("Connect Wi-Fi first"); return; }
+    if (!active.host.length()) {
+        Profile configured;
+        if (loadSshConfig(configured)) {
+            configured.ssid = active.ssid;
+            configured.wifiPassword = active.wifiPassword;
+            active = configured;
+        }
+    }
+    openSshEditor();
+}
+const char* sshFieldName() {
+    switch (sshField) {
+    case SshField::Host: return "SSH host or IP";
+    case SshField::User: return "SSH username";
+    default: return "SSH password";
+    }
+}
+const char* sshEditDisplay() {
+    static char masked[66];
+    if (sshField != SshField::Password) return sshEditValue.c_str();
+    const size_t length = min<size_t>(sshEditValue.length(), sizeof(masked) - 1);
+    for (size_t i=0; i<length; ++i) masked[i] = '*';
+    masked[length] = 0;
+    return masked;
+}
+void editSsh(const InputEvent& event) {
+    if (!editingSsh() || event.type != InputType::Key || event.repeat) return;
+    if (event.key == 27) {
+        state = WiFi.status() == WL_CONNECTED ? State::WifiReady : State::Idle;
+        mark(state == State::WifiReady ? "Wi-Fi connected; I SSH login" : "C: scan Wi-Fi   H: saved");
+        return;
+    }
+    if (event.fn || event.ctrl || event.alt) return;
+    if (event.key == '\b') { if (sshEditValue.length()) sshEditValue.remove(sshEditValue.length() - 1); changed = true; return; }
+    if (event.key != '\n') {
+        const size_t limit = sshField == SshField::Host ? 63 : sshField == SshField::User ? 31 : 63;
+        if (event.key >= 32 && event.key <= 126 && sshEditValue.length() < limit) { sshEditValue += event.key; changed = true; }
+        return;
+    }
+    if (!sshEditValue.length()) { mark("This field cannot be empty"); return; }
+    if (sshField == SshField::Host) {
+        active.host = sshEditValue; sshField = SshField::User; sshEditValue = active.user; mark("Enter SSH username"); return;
+    }
+    if (sshField == SshField::User) {
+        active.user = sshEditValue; sshField = SshField::Password; sshEditValue = active.sshPassword; mark("Enter SSH password"); return;
+    }
+    active.sshPassword = sshEditValue; active.port = 22; active.fingerprint = ""; expected = ""; sshConfigured = true;
+    beginSsh();
+}
 void loop() {
     const bool wifiNow = WiFi.status() == WL_CONNECTED;
     if (wifiNow != lastWifiConnected) { lastWifiConnected = wifiNow; changed = true; }
@@ -357,16 +418,14 @@ void loop() {
         }
         WiFi.scanDelete(); state=State::Idle; networkSelected=0; mark(networkCount ? "Select Wi-Fi and press Enter" : "No Wi-Fi found; C retry"); return;
     }
-    if (state == State::Idle || state == State::Error || state == State::Password || state == State::Trust) return;
+    if (state == State::Idle || state == State::Error || state == State::Password || state == State::SshEdit || state == State::Trust) return;
     if (state == State::WifiReady) { if (WiFi.status()!=WL_CONNECTED) fail("Wi-Fi disconnected; C scan"); return; }
     if (state != State::Ready && static_cast<int32_t>(millis()-deadline)>=0) { fail("Connection stage timed out"); return; }
     if (state == State::Wifi) {
         if (WiFi.status() == WL_NO_SSID_AVAIL || WiFi.status() == WL_CONNECT_FAILED) { fail("Wi-Fi failed; E edit password"); return; }
         if (WiFi.status()!=WL_CONNECTED) return;
         const bool remembered = rememberWifi();
-        if (!sshConfigured) {
-            move(State::WifiReady, remembered ? "Wi-Fi connected / saved" : "Wi-Fi connected; save failed"); return;
-        }
+        if (!sshConfigured) { openSshEditor(); return; }
         beginSsh(); return;
     }
     if (WiFi.status()!=WL_CONNECTED) { fail("Wi-Fi disconnected"); return; }
