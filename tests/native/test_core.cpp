@@ -1,6 +1,7 @@
 #include "core/TerminalBuffer.h"
 #include "core/KeyMapping.h"
 #include "media/JpegFrame.h"
+#include "core/WifiPasswordInput.h"
 #include <cassert>
 #include <cstring>
 #include <iostream>
@@ -43,6 +44,16 @@ int main() {
     assert(KeyMapping::text(0x35,false)=='`' && KeyMapping::text(0x38,true)=='?');
     assert(KeyMapping::code(0x33,true)==0x52 && KeyMapping::code(0x37,true)==0x51);
     assert(KeyMapping::code(0x14,true)==0 && KeyMapping::code(0x14,false)==0x14);
+    WifiPasswordInput wifiPassword;
+    for (int i=0; i<7; ++i) wifiPassword.append('a');
+    assert(!wifiPassword.valid());
+    wifiPassword.append('b');
+    assert(wifiPassword.valid());
+    wifiPassword.backspace();
+    assert(!wifiPassword.valid());
+    wifiPassword.clear();
+    for (int i=0; i<64; ++i) wifiPassword.append(i == 63 ? 'f' : 'a');
+    assert(wifiPassword.valid());
     assert(KeyMapping::code(0x2a,true)==0x4c);
     std::cout << "PASS: terminal stream/cursor/scroll, MJPEG bounds/recovery, key mapping\n";
 }

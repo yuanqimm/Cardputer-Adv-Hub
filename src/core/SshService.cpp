@@ -1,19 +1,21 @@
 #include "core/SshService.h"
 #include "core/TerminalBuffer.h"
+#include "core/WifiPasswordInput.h"
 #include <ArduinoJson.h>
 #include <SD.h>
 #include <WiFi.h>
+#include <esp_wifi.h>
 #include <Preferences.h>
 #include <mbedtls/sha256.h>
 #include "libssh_esp32.h"
 #include <libssh/libssh.h>
 
 namespace {
-enum class State { Idle, Scanning, Wifi, Connect, Verify, Trust, Authenticate, Open, Pty, Shell, Ready, Error };
+enum class State { Idle, Scanning, Password, Wifi, WifiReady, Connect, Verify, Trust, Authenticate, Open, Pty, Shell, Ready, Error };
 enum class Browser { None, Wifi, Saved };
 constexpr uint8_t MaxWifi = 8;
 constexpr uint8_t MaxSaved = 6;
-struct WifiEntry { String ssid; int32_t rssi = 0; bool secured = false; };
+struct WifiEntry { String ssid; int32_t rssi = 0; bool secured = false; uint8_t auth = WIFI_AUTH_OPEN; };
 struct Profile {
     String ssid, wifiPassword, host, user, sshPassword, fingerprint;
     uint16_t port = 22;
@@ -27,6 +29,11 @@ uint8_t savedCountValue = 0, savedSelectedIndex = 0;
 Profile active;
 String message = "C: scan Wi-Fi   H: saved";
 String expected;
+WifiPasswordInput wifiPasswordInput;
+struct WifiMemory { String ssid, password; };
+WifiMemory wifiMemory[MaxSaved];
+uint8_t wifiMemoryCount = 0;
+bool sshConfigured = false, activeSecured = false;
 char fingerprintText[65] = {}, pinKey[15] = {};
 uint32_t deadline = 0;
 ssh_session session = nullptr;
@@ -43,6 +50,44 @@ void release() {
     outgoingSize = 0;
 }
 void fail(const char* text) { release(); move(State::Error, text); }
+bool canStart() { return state == State::Idle || state == State::Error || state == State::WifiReady; }
+void loadWifiMemory() {
+    Preferences prefs;
+    if (!prefs.begin("ssh-prof", true)) return;
+    const String stored = prefs.getString("wifi", "");
+    prefs.end();
+    JsonDocument doc;
+    if (!stored.length() || stored.length() > 4096 || deserializeJson(doc, stored)) return;
+    for (JsonObject row : doc.as<JsonArray>()) {
+        if (wifiMemoryCount >= MaxSaved) break;
+        const String ssid = row["ssid"] | "";
+        if (!ssid.length() || ssid.length() > 32) continue;
+        wifiMemory[wifiMemoryCount].ssid = ssid;
+        wifiMemory[wifiMemoryCount++].password = row["password"] | "";
+    }
+}
+bool rememberWifi() {
+    int match = -1;
+    for (uint8_t i=0; i<wifiMemoryCount; ++i) if (wifiMemory[i].ssid == active.ssid) { match=i; break; }
+    if (match >= 0 && wifiMemory[match].password == active.wifiPassword) return true;
+    // Commit a complete record array atomically; failed connections never call this.
+    JsonDocument doc;
+    JsonArray rows = doc.to<JsonArray>();
+    JsonObject first = rows.add<JsonObject>();
+    first["ssid"] = active.ssid; first["password"] = active.wifiPassword;
+    for (uint8_t i=0; i<wifiMemoryCount && rows.size()<MaxSaved; ++i) {
+        if (i == match) continue;
+        JsonObject row = rows.add<JsonObject>();
+        row["ssid"] = wifiMemory[i].ssid; row["password"] = wifiMemory[i].password;
+    }
+    String stored; serializeJson(doc, stored);
+    Preferences prefs;
+    if (!prefs.begin("ssh-prof", false)) return false;
+    const bool ok = prefs.putString("wifi", stored) == stored.length();
+    prefs.end();
+    if (ok) { wifiMemoryCount = 0; loadWifiMemory(); }
+    return ok;
+}
 bool loadJson(const char* path, JsonDocument& doc) {
     File file = SD.open(path, FILE_READ);
     if (!file || file.size() > 4096) { if (file) file.close(); return false; }
@@ -103,27 +148,37 @@ bool loadSshConfig(Profile& profile) {
     profile.user = config["user"] | "";
     profile.sshPassword = config["password"] | "";
     const int requestedPort = config["port"] | 22;
-    expected = config["host_key_sha256"] | "";
-    expected.toLowerCase(); expected.replace(":", "");
+    profile.fingerprint = config["host_key_sha256"] | "";
+    profile.fingerprint.toLowerCase(); profile.fingerprint.replace(":", "");
     if (!profile.host.length() || !profile.user.length() || requestedPort < 1 || requestedPort > 65535 ||
-        (expected.length() && expected.length() != 64)) return false;
+        (profile.fingerprint.length() && profile.fingerprint.length() != 64)) return false;
+    for (size_t i=0; i<profile.fingerprint.length(); ++i) if (!isxdigit(static_cast<unsigned char>(profile.fingerprint[i]))) return false;
     profile.port = requestedPort;
     return true;
 }
-bool makeProfileForNetwork(const String& ssid, bool secured, Profile& profile) {
-    for (uint8_t i=0;i<savedCountValue;++i) if (saved[i].ssid == ssid) { profile = saved[i]; expected = profile.fingerprint; return true; }
-    JsonDocument wifi;
-    if (!loadSshConfig(profile)) return false;
-    if (!loadJson("/config/wifi.json", wifi)) {
-        if (secured) return false;
-        profile.ssid = ssid; profile.wifiPassword = ""; return true;
+bool makeProfileForNetwork(const String& ssid, bool secured, Profile& profile, bool& needsPassword) {
+    needsPassword = secured;
+    sshConfigured = loadSshConfig(profile);
+    if (!sshConfigured) {
+        profile = Profile();
+        for (uint8_t i=0;i<savedCountValue;++i) {
+            if (saved[i].ssid == ssid) { profile = saved[i]; sshConfigured = true; break; }
+        }
     }
-    const String configured = wifi["ssid"] | "";
-    const String pass = wifi["password"] | "";
-    if (configured != ssid && secured) return false;
     profile.ssid = ssid;
-    profile.wifiPassword = configured == ssid ? pass : "";
-    return !secured || profile.wifiPassword.length() > 0;
+    profile.wifiPassword = "";
+    if (!secured) return true;
+    for (uint8_t i=0;i<wifiMemoryCount;++i) {
+        if (wifiMemory[i].ssid == ssid && wifiMemory[i].password.length()) {
+            profile.wifiPassword = wifiMemory[i].password; needsPassword = false; return true;
+        }
+    }
+    for (uint8_t i=0;i<savedCountValue;++i) {
+        if (saved[i].ssid == ssid && saved[i].wifiPassword.length()) {
+            profile.wifiPassword = saved[i].wifiPassword; needsPassword = false; return true;
+        }
+    }
+    return true;
 }
 bool verifyKey() {
     ssh_key key = nullptr; unsigned char* hash = nullptr; size_t length = 0;
@@ -158,23 +213,32 @@ void beginSsh() {
     if (ESP.getFreeHeap() < 70000) { fail("Not enough free SSH memory"); return; }
     session = ssh_new(); if (!session) { fail("Cannot allocate SSH session"); return; }
     const long timeout = 5;
+    const int sshPort = active.port; // libssh reads an int, not a uint16_t.
     if (ssh_options_set(session, SSH_OPTIONS_HOST, active.host.c_str()) != SSH_OK ||
         ssh_options_set(session, SSH_OPTIONS_USER, active.user.c_str()) != SSH_OK ||
-        ssh_options_set(session, SSH_OPTIONS_PORT, &active.port) != SSH_OK ||
+        ssh_options_set(session, SSH_OPTIONS_PORT, &sshPort) != SSH_OK ||
         ssh_options_set(session, SSH_OPTIONS_TIMEOUT, &timeout) != SSH_OK) { fail("Invalid SSH options"); return; }
     ssh_set_blocking(session, 0); move(State::Connect, "SSH handshake...");
 }
+void beginWifiConnection(const char* text) {
+    release();
+    terminalBuffer.reset(); fingerprintText[0] = 0; pinKey[0] = 0;
+    wifiPasswordInput.clear();
+    WiFi.disconnect(false, false);
+    WiFi.mode(WIFI_STA); WiFi.begin(active.ssid.c_str(), active.wifiPassword.c_str());
+    browser = Browser::None; move(State::Wifi, text);
+}
 }
 namespace SshService {
-void begin() { libssh_begin(); loadSaved(); WiFi.mode(WIFI_STA); WiFi.setAutoReconnect(false); }
+void begin() { libssh_begin(); loadSaved(); loadWifiMemory(); WiFi.persistent(false); WiFi.setAutoReconnect(false); }
 void scanWifi() {
-    if (state == State::Ready || state == State::Scanning || state == State::Wifi || state == State::Connect || state == State::Verify || state == State::Authenticate || state == State::Open || state == State::Pty || state == State::Shell) return;
+    if (!canStart()) return;
     release(); browser = Browser::Wifi; networkCount = networkSelected = 0; WiFi.mode(WIFI_STA); WiFi.scanDelete();
     const int result = WiFi.scanNetworks(true, true);
     if (result == WIFI_SCAN_FAILED) { state = State::Idle; mark("Wi-Fi scan failed; C retry"); return; }
-    state = State::Scanning; mark("Scanning Wi-Fi...");
+    move(State::Scanning, "Scanning Wi-Fi...");
 }
-void showSaved() { loadSaved(); browser = Browser::Saved; savedSelectedIndex = 0; mark(savedCountValue ? "Select saved SSH profile" : "No saved profile"); }
+void showSaved() { if (!canStart()) return; loadSaved(); browser = Browser::Saved; savedSelectedIndex = 0; mark(savedCountValue ? "Select saved SSH profile" : "No saved profile"); }
 void moveSelection(int delta) {
     const uint8_t count = browser == Browser::Wifi ? networkCount : browser == Browser::Saved ? savedCountValue : 0;
     if (!count) return;
@@ -184,33 +248,46 @@ void moveSelection(int delta) {
     changed = true;
 }
 bool selectCurrent() {
+    if (!canStart()) return false;
     if (browser == Browser::Wifi && networkCount) {
-        Profile profile;
-        if (!makeProfileForNetwork(networks[networkSelected].ssid, networks[networkSelected].secured, profile)) {
-            mark(networks[networkSelected].secured ? "Need password in /config/wifi.json" : "Need /config/ssh.json"); return false;
+        const auto auth = networks[networkSelected].auth;
+        if (auth != WIFI_AUTH_OPEN && auth != WIFI_AUTH_WPA_PSK && auth != WIFI_AUTH_WPA2_PSK &&
+            auth != WIFI_AUTH_WPA_WPA2_PSK && auth != WIFI_AUTH_WPA3_PSK && auth != WIFI_AUTH_WPA2_WPA3_PSK) {
+            mark("Unsupported Wi-Fi security"); return false;
         }
-        active = profile; expected = active.fingerprint; terminalBuffer.reset(); fingerprintText[0] = 0; pinKey[0] = 0;
-        WiFi.mode(WIFI_STA); WiFi.begin(active.ssid.c_str(), active.wifiPassword.c_str());
-        browser = Browser::None; move(State::Wifi, "Connecting Wi-Fi..."); return true;
+        Profile profile; bool needsPassword = false;
+        if (!makeProfileForNetwork(networks[networkSelected].ssid, networks[networkSelected].secured, profile, needsPassword)) {
+            mark("Need /config/ssh.json"); return false;
+        }
+        active = profile; expected = active.fingerprint;
+        activeSecured = networks[networkSelected].secured;
+        if (needsPassword) { wifiPasswordInput.clear(); browser = Browser::None; move(State::Password, "Enter Wi-Fi password"); return true; }
+        beginWifiConnection("Connecting Wi-Fi..."); return true;
     }
     if (browser == Browser::Saved && savedCountValue) {
-        active = saved[savedSelectedIndex]; expected = active.fingerprint; terminalBuffer.reset(); fingerprintText[0] = 0; pinKey[0] = 0; browser = Browser::None;
-        WiFi.mode(WIFI_STA); WiFi.begin(active.ssid.c_str(), active.wifiPassword.c_str()); move(State::Wifi, "Connecting saved Wi-Fi..."); return true;
+        active = saved[savedSelectedIndex]; expected = active.fingerprint;
+        sshConfigured = true; activeSecured = active.wifiPassword.length() > 0;
+        beginWifiConnection("Connecting saved Wi-Fi..."); return true;
     }
     return false;
 }
 void connect() {
-    if (browser != Browser::None && selectCurrent()) return;
+    if (!canStart()) return;
+    browser = Browser::None;
     Profile profile;
     JsonDocument wifi;
     if (!loadSshConfig(profile) || !loadJson("/config/wifi.json", wifi)) { mark("Need /config/wifi.json + ssh.json"); return; }
     profile.ssid = wifi["ssid"] | ""; profile.wifiPassword = wifi["password"] | "";
     if (!profile.ssid.length()) { mark("Missing Wi-Fi SSID"); return; }
-    active = profile; expected = active.fingerprint; terminalBuffer.reset(); fingerprintText[0] = 0; pinKey[0] = 0;
-    WiFi.mode(WIFI_STA); WiFi.begin(active.ssid.c_str(), active.wifiPassword.c_str()); move(State::Wifi, "Connecting SD Wi-Fi...");
+    active = profile; expected = active.fingerprint; sshConfigured = true; activeSecured = active.wifiPassword.length() > 0;
+    beginWifiConnection("Connecting SD Wi-Fi...");
 }
-void disconnect() { release(); WiFi.disconnect(false, false); browser = Browser::None; move(State::Idle, "Disconnected; C scan Wi-Fi"); }
-void cancel() { release(); WiFi.disconnect(false, false); browser = Browser::None; state = State::Idle; mark("C: scan Wi-Fi   H: saved"); }
+void disconnect() {
+    if (state == State::Scanning) esp_wifi_scan_stop();
+    WiFi.scanDelete(); release(); wifiPasswordInput.clear(); active = Profile(); activeSecured = false;
+    WiFi.disconnect(false, false); browser = Browser::None; move(State::Idle, "Disconnected; C scan Wi-Fi");
+}
+void cancel() { disconnect(); }
 bool awaitingTrust() { return state == State::Trust; }
 const char* fingerprint() { return fingerprintText; }
 void trustServer() {
@@ -222,10 +299,46 @@ void trustServer() {
     if (!ok) { fail("Cannot save host fingerprint"); return; }
     move(State::Authenticate,"Authenticating...");
 }
+bool enteringPassword() { return state == State::Password; }
+const char* passwordSsid() { return active.ssid.c_str(); }
+const char* passwordDisplay() {
+    static char masked[34];
+    const size_t length = min<size_t>(wifiPasswordInput.size(), sizeof(masked) - 1);
+    for (size_t i = 0; i < length; ++i) masked[i] = '*';
+    masked[length] = 0; return masked;
+}
+void changeWifiPassword() {
+    if (!canStart()) return;
+    if (browser == Browser::Wifi || browser == Browser::Saved) {
+        // Selection may start connecting with stored credentials. Stop that attempt
+        // before entering the editor; the next loop has not run yet.
+        if (!selectCurrent()) return;
+        WiFi.disconnect(false, false);
+    }
+    if (!active.ssid.length() || !activeSecured) return;
+    release(); browser = Browser::None; wifiPasswordInput.clear();
+    move(State::Password, "Enter new Wi-Fi password");
+}
+void editPassword(const InputEvent& event) {
+    if (!enteringPassword() || event.type != InputType::Key) return;
+    if (event.repeat) return;
+    if (event.key == 27) { wifiPasswordInput.clear(); browser = Browser::Wifi; state = State::Idle; mark("Select Wi-Fi and press Enter"); return; }
+    if (event.fn || event.ctrl || event.alt) return;
+    if (event.key == '\n') {
+        if (event.repeat) return;
+        if (!wifiPasswordInput.valid()) { mark("Use 8-63 chars or 64 hex digits"); return; }
+        active.wifiPassword = wifiPasswordInput.text(); beginWifiConnection("Connecting Wi-Fi..."); return;
+    }
+    if (event.key == '\b') { wifiPasswordInput.backspace(); changed = true; return; }
+    wifiPasswordInput.append(event.key); changed = true;
+}
 void loop() {
     if (state == State::Scanning) {
         const int result = WiFi.scanComplete();
-        if (result == WIFI_SCAN_RUNNING) return;
+        if (result == WIFI_SCAN_RUNNING) {
+            if (static_cast<int32_t>(millis()-deadline)>=0) { esp_wifi_scan_stop(); WiFi.scanDelete(); state=State::Idle; mark("Wi-Fi scan timed out; C retry"); }
+            return;
+        }
         if (result < 0) { WiFi.scanDelete(); state=State::Idle; mark("Wi-Fi scan failed; C retry"); return; }
         networkCount = 0;
         for (int i=0; i<result && networkCount<MaxWifi; ++i) {
@@ -235,15 +348,21 @@ void loop() {
             networks[networkCount].ssid = ssid;
             networks[networkCount].rssi = WiFi.RSSI(i);
             networks[networkCount].secured = WiFi.encryptionType(i) != WIFI_AUTH_OPEN;
+            networks[networkCount].auth = WiFi.encryptionType(i);
             ++networkCount;
         }
         WiFi.scanDelete(); state=State::Idle; networkSelected=0; mark(networkCount ? "Select Wi-Fi and press Enter" : "No Wi-Fi found; C retry"); return;
     }
-    if (state == State::Idle || state == State::Error || state == State::Trust) return;
+    if (state == State::Idle || state == State::Error || state == State::Password || state == State::Trust) return;
+    if (state == State::WifiReady) { if (WiFi.status()!=WL_CONNECTED) fail("Wi-Fi disconnected; C scan"); return; }
     if (state != State::Ready && static_cast<int32_t>(millis()-deadline)>=0) { fail("Connection stage timed out"); return; }
     if (state == State::Wifi) {
-        if (WiFi.status() == WL_NO_SSID_AVAIL || WiFi.status() == WL_CONNECT_FAILED) { fail("Wi-Fi connection failed"); return; }
+        if (WiFi.status() == WL_NO_SSID_AVAIL || WiFi.status() == WL_CONNECT_FAILED) { fail("Wi-Fi failed; E edit password"); return; }
         if (WiFi.status()!=WL_CONNECTED) return;
+        const bool remembered = rememberWifi();
+        if (!sshConfigured) {
+            move(State::WifiReady, remembered ? "Wi-Fi connected / saved" : "Wi-Fi connected; save failed"); return;
+        }
         beginSsh(); return;
     }
     if (WiFi.status()!=WL_CONNECTED) { fail("Wi-Fi disconnected"); return; }
@@ -254,7 +373,7 @@ void loop() {
     case State::Authenticate:
         rc=ssh_userauth_password(session,nullptr,active.sshPassword.c_str());
         if(rc==SSH_AUTH_SUCCESS) { saveProfile(active); active.sshPassword=""; channel=ssh_channel_new(session); if(channel) move(State::Open,"Opening shell..."); else fail("Cannot allocate channel"); }
-        else if(rc!=SSH_AGAIN) fail("SSH password auth failed"); break;
+        else if(rc!=SSH_AUTH_AGAIN) fail("SSH password auth failed"); break;
     case State::Open: rc=ssh_channel_open_session(channel); if(rc==SSH_OK) move(State::Pty,"Starting terminal..."); else if(rc!=SSH_AGAIN) fail("SSH channel failed"); break;
     case State::Pty: rc=ssh_channel_request_pty_size(channel,"vt100",TerminalBuffer::Columns,TerminalBuffer::Rows); if(rc==SSH_OK) move(State::Shell,"Starting shell..."); else if(rc!=SSH_AGAIN) fail("SSH PTY failed"); break;
     case State::Shell: rc=ssh_channel_request_shell(channel); if(rc==SSH_OK) move(State::Ready,"Connected"); else if(rc!=SSH_AGAIN) fail("SSH shell failed"); break;
