@@ -37,7 +37,18 @@ public:
             return;
         }
         if((key=='q' || e.key=='\b') && !e.repeat) { home(); return; }
-        if(screen_==1) { if(key=='c' && !e.repeat) SshService::connect(); return; }
+        if(screen_==1) {
+            if(!e.repeat && key=='c') { SshService::scanWifi(); return; }
+            if(!e.repeat && key=='h') { SshService::showSaved(); return; }
+            if(!e.repeat && key=='d') { SshService::connect(); return; }
+            if(SshService::view()!=0) {
+                if(up(e,key)) SshService::moveSelection(-1);
+                else if(down(e,key)) SshService::moveSelection(1);
+                else if(e.key=='\n' && !e.repeat) SshService::selectCurrent();
+                return;
+            }
+            return;
+        }
         if(screen_==3 && !e.repeat) {
             if(key>='1' && key<='9') IrRemote::sendButton(key-'1');
             if(key=='n') IrRemote::nextProfile();
@@ -106,18 +117,52 @@ private:
         if(SshService::connected()) {
             for(uint8_t row=0;row<12;++row) Ui::line(22+row*8,SshService::terminalRow(row));
         } else {
-            Ui::line(30,SshService::status(),TFT_CYAN);
             if(SshService::awaitingTrust()) {
+                Ui::line(30,SshService::status(),TFT_CYAN);
                 char part[33];
                 memcpy(part,SshService::fingerprint(),32); part[32]=0; Ui::line(52,part);
                 memcpy(part,SshService::fingerprint()+32,32); part[32]=0; Ui::line(64,part);
                 Ui::line(88,"T: trust this host and save",TFT_YELLOW);
+            } else if(SshService::view()==1) {
+                const uint8_t count=SshService::wifiCount();
+                if(!count) {
+                    Ui::line(32,SshService::status(),TFT_CYAN);
+                    Ui::line(58,"C: scan again   H: saved");
+                } else {
+                    for(uint8_t i=0;i<count && i<8;++i) {
+                        const int y=22+i*12;
+                        const bool selected=i==SshService::wifiSelected();
+                        const uint16_t bg=selected?TFT_BLUE:TFT_BLACK;
+                        Ui::canvas().fillRect(3,y-1,234,11,bg);
+                        char row[40];
+                        snprintf(row,sizeof(row),"%c %-21.21s %4ld%c",selected?'>':' ',SshService::wifiName(i),static_cast<long>(SshService::wifiRssi(i)),SshService::wifiSecured(i)?'*':' ');
+                        Ui::canvas().setTextColor(TFT_WHITE,bg); Ui::canvas().drawString(row,6,y);
+                    }
+                }
+            } else if(SshService::view()==2) {
+                const uint8_t count=SshService::savedCount();
+                if(!count) {
+                    Ui::line(32,SshService::status(),TFT_CYAN);
+                    Ui::line(58,"C: scan Wi-Fi   D: SD config");
+                } else {
+                    for(uint8_t i=0;i<count && i<6;++i) {
+                        const int y=22+i*12;
+                        const bool selected=i==SshService::savedSelected();
+                        const uint16_t bg=selected?TFT_BLUE:TFT_BLACK;
+                        Ui::canvas().fillRect(3,y-1,234,11,bg);
+                        char row[48];
+                        snprintf(row,sizeof(row),"%c %-15.15s %.19s",selected?'>':' ',SshService::savedSsid(i),SshService::savedTarget(i));
+                        Ui::canvas().setTextColor(TFT_WHITE,bg); Ui::canvas().drawString(row,6,y);
+                    }
+                }
             } else {
-                Ui::line(58,"C: connect   Fn+Q: cancel");
-                Ui::line(82,"SD: /config/wifi.json"); Ui::line(96,"    /config/ssh.json");
+                Ui::line(30,SshService::status(),TFT_CYAN);
+                Ui::line(58,"C: scan Wi-Fi   H: saved");
+                Ui::line(76,"D: connect SD config");
+                Ui::line(94,"Enter: choose  W/S: move");
             }
         }
-        Ui::footer("Fn+Q: disconnect / home");
+        Ui::footer("C scan H history Fn+Q home");
     }
     void drawKeyboard() {
         Ui::header("Keyboard");
