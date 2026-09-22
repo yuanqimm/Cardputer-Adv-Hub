@@ -1,6 +1,7 @@
 #include "core/SshService.h"
 #include "core/TerminalBuffer.h"
 #include "core/WifiPasswordInput.h"
+#include "core/BleKeyboardService.h"
 #include <ArduinoJson.h>
 #include <SD.h>
 #include <WiFi.h>
@@ -38,6 +39,7 @@ WifiMemory wifiMemory[MaxSaved];
 uint8_t wifiMemoryCount = 0;
 bool sshConfigured = false, activeSecured = false;
 bool lastWifiConnected = false;
+bool bleSuspendedForSsh = false;
 char fingerprintText[65] = {}, pinKey[15] = {};
 uint32_t deadline = 0;
 ssh_session session = nullptr;
@@ -53,7 +55,10 @@ void release() {
     if (session) { ssh_disconnect(session); ssh_free(session); session = nullptr; }
     outgoingSize = 0;
 }
-void fail(const char* text) { release(); move(State::Error, text); }
+void resumeBle() {
+    if (bleSuspendedForSsh) { BleKeyboardService::resume(); bleSuspendedForSsh = false; }
+}
+void fail(const char* text) { release(); resumeBle(); move(State::Error, text); }
 bool canStart() { return state == State::Idle || state == State::Error || state == State::WifiReady; }
 void openSshEditor() {
     sshField = SshField::Host;
@@ -219,6 +224,7 @@ bool verifyKey() {
     return true;
 }
 void beginSsh() {
+    if (!bleSuspendedForSsh) { BleKeyboardService::suspend(); bleSuspendedForSsh = true; }
     const uint32_t freeHeap = ESP.getFreeHeap();
     // Wi-Fi keeps a sizeable receive buffer while LibSSH allocates its crypto state.
     // Leave 48 KiB for that state and report the actual value when the guard trips.
@@ -300,7 +306,7 @@ void connect() {
 }
 void disconnect() {
     if (state == State::Scanning) esp_wifi_scan_stop();
-    WiFi.scanDelete(); release(); wifiPasswordInput.clear(); browser = Browser::None;
+    WiFi.scanDelete(); release(); resumeBle(); wifiPasswordInput.clear(); browser = Browser::None;
     if (WiFi.status() == WL_CONNECTED) { state = State::WifiReady; mark("Wi-Fi connected; D SSH config"); }
     else { state = State::Idle; mark("Wi-Fi disconnected; C scan"); }
 }

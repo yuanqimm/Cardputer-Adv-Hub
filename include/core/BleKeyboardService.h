@@ -2,6 +2,8 @@
 
 namespace BleKeyboardService {
 void begin();
+void suspend();
+void resume();
 void update(bool enabled);
 bool connected();
 bool dirty();

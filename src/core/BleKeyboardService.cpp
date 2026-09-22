@@ -146,6 +146,7 @@ class ControlCallbacks final : public NimBLECharacteristicCallbacks {
 }
 namespace BleKeyboardService {
 void begin() {
+    if (initialized) return;
     resetReason = esp_reset_reason();
     if (history.magic != DiagnosticMagic || resetReason == ESP_RST_POWERON) {
         history = {DiagnosticMagic, 0, 0, 0};
@@ -199,6 +200,18 @@ void begin() {
     initialized = advertising->start();
     Serial.printf("[N2] advertising=%d reset=%d heap=%u\n", initialized, resetReason, ESP.getFreeHeap());
 }
+void suspend() {
+    if (!initialized) return;
+    const uint16_t handle = connection.load();
+    if (handle != BLE_HS_CONN_HANDLE_NONE && server) server->disconnect(handle);
+    NimBLEDevice::stopAdvertising();
+    NimBLEDevice::deinit(true);
+    server = nullptr; reportInput = nullptr; bootInput = nullptr;
+    initialized = false; resetting = false; sentReport = false;
+    connection.store(BLE_HS_CONN_HANDLE_NONE); state.store(0); subscriptions.store(0);
+    ++revision;
+}
+void resume() { begin(); }
 void resetPairings() {
     if (!initialized || resetting) return;
     resetting = true;
@@ -213,6 +226,7 @@ void update(bool enabled) {
     while (Serial.available() > 0) {
         if (Serial.read() == '?') snapshotRequested = true;
     }
+    if (!initialized) { serialAttached = false; return; }
     if (snapshotRequested || (Serial && !serialAttached)) {
         Serial.printf("[N2] %s; %s; %s\n", status(), diagnostic(), counters());
         Serial.printf("[N2] address=%s adv=%d peers=%u link_error=0x%X\n",
