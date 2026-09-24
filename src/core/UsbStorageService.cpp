@@ -11,7 +11,9 @@
 #include <cstring>
 
 namespace {
-USBMSC msc;
+// Construct after SD and the other USB classes have initialized.  A global
+// USBMSC would race the global HID object during C++ static initialization.
+USBMSC* msc = nullptr;
 volatile bool hostActiveFlag = false;
 bool mscReady = false;
 bool observedHostActive = false;
@@ -71,18 +73,20 @@ void usbEvent(void*, esp_event_base_t, int32_t eventId, void*) {
 
 namespace UsbStorageService {
 void begin() {
+    if (msc) return;
+    msc = new USBMSC();
     USB.onEvent(usbEvent);
-    msc.vendorID("M5Stack");
-    msc.productID("Cardputer SD");
-    msc.productRevision("1.0");
-    msc.onStartStop(onStartStop);
-    msc.onRead(onRead);
-    msc.onWrite(onWrite);
+    msc->vendorID("M5Stack");
+    msc->productID("Cardputer SD");
+    msc->productRevision("1.0");
+    msc->onStartStop(onStartStop);
+    msc->onRead(onRead);
+    msc->onWrite(onWrite);
 
     const bool card = Storage::available() && SD.sectorSize() == SectorSize && SD.numSectors() > 0;
     const uint32_t sectors = card ? static_cast<uint32_t>(std::min<size_t>(SD.numSectors(), 0xFFFFFFFFu)) : 1u;
-    mscReady = msc.begin(sectors, SectorSize);
-    msc.mediaPresent(card);
+    mscReady = msc->begin(sectors, SectorSize);
+    msc->mediaPresent(card);
     stateText = card ? "USB SD: ready" : "USB SD: no card";
 }
 
