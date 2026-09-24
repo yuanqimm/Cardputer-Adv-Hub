@@ -26,6 +26,7 @@ void release() {
 }
 bool start() {
     release();
+    if (!Storage::appAccessAllowed()) { mark("USB computer is using SD"); return false; }
     const uint16_t count = Storage::mediaCount("/music");
     if (!count) { mark("No MP3/WAV files"); return false; }
     selected %= count;

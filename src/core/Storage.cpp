@@ -5,6 +5,7 @@
 #include <vector>
 namespace {
 bool initialized = false;
+bool appAccess = true;
 std::vector<String> music, videos;
 constexpr size_t MaxFiles = 128;
 std::vector<String>& list(const char* directory) { return strcmp(directory, "/music") == 0 ? music : videos; }
@@ -32,13 +33,17 @@ namespace Storage {
 bool begin() {
     SPI.begin(40, 39, 14, 12);
     initialized = SD.begin(12, SPI, 25000000);
+    appAccess = true;
     if (available()) {
         SD.mkdir("/music"); SD.mkdir("/video"); SD.mkdir("/config"); refresh();
     }
     return available();
 }
 bool available() { return initialized && SD.cardType() != CARD_NONE; }
-void refresh() { if (available()) { scan("/music"); scan("/video"); } }
+void suspendAppAccess() { appAccess = false; }
+void resumeAppAccess() { appAccess = true; }
+bool appAccessAllowed() { return appAccess; }
+void refresh() { if (available() && appAccess) { scan("/music"); scan("/video"); } }
 uint64_t totalBytes() { return available() ? SD.cardSize() : 0; }
 uint64_t usedBytes() { return available() ? SD.usedBytes() : 0; }
 uint16_t mediaCount(const char* directory) { return available() ? list(directory).size() : 0; }

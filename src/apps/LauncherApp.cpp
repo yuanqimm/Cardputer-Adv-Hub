@@ -7,6 +7,7 @@
 #include "core/BleKeyboardService.h"
 #include "core/IrRemote.h"
 #include "core/SshService.h"
+#include "core/UsbStorageService.h"
 #include "media/MediaPlayer.h"
 #include "media/VideoPlayer.h"
 #include <cstring>
@@ -207,7 +208,11 @@ private:
     }
     void drawMedia() {
         Ui::header(videoMode_?"Video Player":"Music Player");
-        if(!Storage::available()) {
+        if(UsbStorageService::hostActive()) {
+            Ui::line(38,"USB SD connected",TFT_YELLOW);
+            Ui::line(58,"Safely eject on PC first");
+            Ui::line(78,"then return to media");
+        } else if(!Storage::available()) {
             Ui::line(38,"Insert FAT32 SD and reboot",TFT_YELLOW);
             Ui::line(64,"/music: MP3 WAV"); Ui::line(84,"/video: JPEG MJPEG");
         } else if(videoMode_) {

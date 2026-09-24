@@ -10,6 +10,7 @@
 #include "core/SshService.h"
 #include "core/BleKeyboardService.h"
 #include "core/AppSettings.h"
+#include "core/UsbStorageService.h"
 
 App* createLauncherApp();
 // LibSSH-ESP32's upstream client uses a 51200-byte task stack for crypto.
@@ -25,6 +26,7 @@ void setup() {
     AppSettings::begin();
     input.begin();
     Storage::begin();
+    UsbStorageService::begin();
     MediaPlayer::begin();
     VideoPlayer::begin();
     IrRemote::begin();
@@ -38,6 +40,7 @@ void setup() {
 
 void loop() {
     M5Cardputer.update();
+    UsbStorageService::loop();
     SshService::loop();
     MediaPlayer::loop();
     VideoPlayer::loop();

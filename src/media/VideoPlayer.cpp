@@ -40,6 +40,7 @@ bool readFrame() {
 bool openCurrent() {
     stream.close(); frame.reset(); validFrame = false; playing = false;
     chunkSize = chunkPos = 0;
+    if (!Storage::appAccessAllowed()) { mark("USB computer is using SD"); return false; }
     const uint16_t count = Storage::mediaCount("/video");
     if (!count) { mark("No JPEG/MJPEG files"); return false; }
     selected %= count;
@@ -82,6 +83,7 @@ bool dirty() { const bool result = changed; changed = false; return result; }
 const char* currentName() { return name; }
 const char* status() { return message; }
 void render() {
+    if (!Storage::appAccessAllowed()) { Ui::line(54, "USB computer is using SD", TFT_YELLOW); return; }
     if (!validFrame) { Ui::line(54, message, TFT_YELLOW); return; }
     if (mjpeg) Ui::canvas().drawJpg(frame.get(), frameSize, 0, 22, 240, 96);
     else {
