@@ -50,10 +50,11 @@ void loop() {
     const bool videoDirty = VideoPlayer::dirty();
     const bool bleDirty = BleKeyboardService::dirty();
     const bool mediaDirty = MediaPlayer::dirty();
+    const bool storageDirty = UsbStorageService::dirty();
     if (event.type != InputType::None) {
         currentApp->onInput(event);
         currentApp->draw();
-    } else if (sshDirty || videoDirty || bleDirty || mediaDirty) {
+    } else if (sshDirty || videoDirty || bleDirty || mediaDirty || storageDirty) {
         currentApp->draw();
     }
     KeyboardManager::update();

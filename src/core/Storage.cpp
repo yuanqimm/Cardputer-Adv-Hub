@@ -40,12 +40,19 @@ bool begin() {
     return available();
 }
 bool available() { return initialized && SD.cardType() != CARD_NONE; }
+bool remount() {
+    SD.end();
+    music.clear(); videos.clear();
+    initialized = SD.begin(12, SPI, 25000000);
+    appAccess = true;
+    refresh();
+    return available();
+}
 void suspendAppAccess() { appAccess = false; }
-void resumeAppAccess() { appAccess = true; }
 bool appAccessAllowed() { return appAccess; }
 void refresh() { if (available() && appAccess) { scan("/music"); scan("/video"); } }
 uint64_t totalBytes() { return available() ? SD.cardSize() : 0; }
-uint64_t usedBytes() { return available() ? SD.usedBytes() : 0; }
+uint64_t usedBytes() { return available() && appAccess ? SD.usedBytes() : 0; }
 uint16_t mediaCount(const char* directory) { return available() ? list(directory).size() : 0; }
 bool mediaName(const char* directory, uint16_t index, char* output, size_t size) {
     if (!output || !size) return false;

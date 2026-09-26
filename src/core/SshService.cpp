@@ -1,4 +1,5 @@
 #include "core/SshService.h"
+#include "core/Storage.h"
 #include "core/TerminalBuffer.h"
 #include "core/WifiPasswordInput.h"
 #include "core/BleKeyboardService.h"
@@ -103,6 +104,7 @@ bool rememberWifi() {
     return ok;
 }
 bool loadJson(const char* path, JsonDocument& doc) {
+    if (!Storage::appAccessAllowed()) return false;
     File file = SD.open(path, FILE_READ);
     if (!file || file.size() > 4096) { if (file) file.close(); return false; }
     const bool ok = !deserializeJson(doc, file);

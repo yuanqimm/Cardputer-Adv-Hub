@@ -1,112 +1,125 @@
 #include "core/UsbStorageService.h"
-
 #include "core/Storage.h"
 #include "media/MediaPlayer.h"
 #include "media/VideoPlayer.h"
 #include <SD.h>
 #include "USB.h"
 #include "USBMSC.h"
-
+#include <freertos/FreeRTOS.h>
+#include <freertos/semphr.h>
+#include <atomic>
 #include <algorithm>
 #include <cstring>
 
+extern USBMSC usbStorageMsc;
 namespace {
-// Construct after SD and the other USB classes have initialized.  A global
-// USBMSC would race the global HID object during C++ static initialization.
-USBMSC* msc = nullptr;
-volatile bool hostActiveFlag = false;
-bool mscReady = false;
-bool observedHostActive = false;
-const char* stateText = "USB SD: idle";
+SemaphoreHandle_t ioMutex = nullptr;
+std::atomic<bool> releaseRequested{false};
+// Protected by ioMutex; shared and UI state belong to the Arduino loop.
+bool ioEnabled = false;
+bool shared = false, mscReady = false, changed = false;
+uint32_t cardSectorCount = 0;
 constexpr uint16_t SectorSize = 512;
-
-void claimHost() {
-    hostActiveFlag = true;
-    Storage::suspendAppAccess();
-}
-
-int32_t onRead(uint32_t lba, uint32_t offset, void* buffer, uint32_t bufsize) {
-    claimHost();
-    if (!buffer || offset >= SectorSize || bufsize > SectorSize - offset ||
-        lba >= SD.numSectors()) return 0;
+const char* stateText = "USB SD: off";
+class IoLock {
+public:
+    IoLock() { xSemaphoreTake(ioMutex, portMAX_DELAY); }
+    ~IoLock() { xSemaphoreGive(ioMutex); }
+};
+int32_t transfer(uint32_t lba, uint32_t offset, void* buffer, uint32_t size, bool write) {
+    if (!ioMutex || !buffer) return -1;
+    IoLock lock;
+    const uint64_t address = uint64_t(lba) * SectorSize + offset;
+    if (!ioEnabled || releaseRequested.load() || address + size > uint64_t(cardSectorCount) * SectorSize) return -1;
+    auto* bytes = static_cast<uint8_t*>(buffer);
     uint8_t sector[SectorSize];
-    if (!SD.readRAW(sector, lba)) return 0;
-    memcpy(static_cast<uint8_t*>(buffer) + 0, sector + offset, bufsize);
-    return static_cast<int32_t>(bufsize);
-}
-
-int32_t onWrite(uint32_t lba, uint32_t offset, uint8_t* buffer, uint32_t bufsize) {
-    claimHost();
-    if (!buffer || offset >= SectorSize || bufsize > SectorSize - offset ||
-        lba >= SD.numSectors()) return 0;
-    uint8_t sector[SectorSize];
-    if (offset != 0 || bufsize != SectorSize) {
-        if (!SD.readRAW(sector, lba)) return 0;
+    uint32_t block = address / SectorSize;
+    uint32_t within = address % SectorSize;
+    for (uint32_t done = 0; done < size; ++block) {
+        const uint32_t count = std::min<uint32_t>(size - done, SectorSize - within);
+        if (!write || within || count != SectorSize) {
+            if (!SD.readRAW(sector, block)) return -1;
+        }
+        if (write) {
+            memcpy(sector + within, bytes + done, count);
+            if (!SD.writeRAW(sector, block)) return -1;
+        } else memcpy(bytes + done, sector + within, count);
+        done += count;
+        within = 0;
     }
-    if (offset == 0 && bufsize == SectorSize) {
-        memcpy(sector, buffer, SectorSize);
-    } else {
-        memcpy(sector + offset, buffer, bufsize);
-    }
-    return SD.writeRAW(sector, lba) ? static_cast<int32_t>(bufsize) : 0;
+    return size;
 }
-
+int32_t onRead(uint32_t lba, uint32_t offset, void* buffer, uint32_t size) {
+    return transfer(lba, offset, buffer, size, false);
+}
+int32_t onWrite(uint32_t lba, uint32_t offset, uint8_t* buffer, uint32_t size) {
+    return transfer(lba, offset, buffer, size, true);
+}
 bool onStartStop(uint8_t, bool start, bool loadEject) {
-    if (start && !loadEject) {
-        claimHost();
-        stateText = "USB SD: computer connected";
-    } else if (loadEject || !start) {
-        hostActiveFlag = false;
-        stateText = "USB SD: safely ejected";
+    // Host start/load requests cannot enable sharing without user input.
+    if (loadEject && !start) {
+        releaseRequested.store(true);
+        usbStorageMsc.mediaPresent(false);
     }
     return true;
 }
-
 void usbEvent(void*, esp_event_base_t, int32_t eventId, void*) {
-    if (eventId == ARDUINO_USB_STOPPED_EVENT) {
-        // A cable removal may skip SCSI START/STOP with load_eject.
-        hostActiveFlag = false;
-        stateText = "USB SD: disconnected";
-    }
+    if (eventId == ARDUINO_USB_STOPPED_EVENT) releaseRequested.store(true);
 }
 }
-
 namespace UsbStorageService {
 void begin() {
-    if (msc) return;
-    msc = new USBMSC();
+    ioMutex = xSemaphoreCreateMutex();
     USB.onEvent(usbEvent);
-    msc->vendorID("M5Stack");
-    msc->productID("Cardputer SD");
-    msc->productRevision("1.0");
-    msc->onStartStop(onStartStop);
-    msc->onRead(onRead);
-    msc->onWrite(onWrite);
-
-    const bool card = Storage::available() && SD.sectorSize() == SectorSize && SD.numSectors() > 0;
-    const uint32_t sectors = card ? static_cast<uint32_t>(std::min<size_t>(SD.numSectors(), 0xFFFFFFFFu)) : 1u;
-    mscReady = msc->begin(sectors, SectorSize);
-    msc->mediaPresent(card);
-    stateText = card ? "USB SD: ready" : "USB SD: no card";
+    usbStorageMsc.vendorID("M5Stack");
+    usbStorageMsc.productID("Cardputer SD");
+    usbStorageMsc.productRevision("1.0");
+    usbStorageMsc.onStartStop(onStartStop);
+    usbStorageMsc.onRead(onRead);
+    usbStorageMsc.onWrite(onWrite);
+    mscReady = ioMutex && usbStorageMsc.begin(1, SectorSize);
+    // Keep the interface registered, but report no medium until selected.
+    usbStorageMsc.mediaPresent(false);
+    if (!mscReady) stateText = "USB SD: init failed";
 }
-
-void loop() {
-    const bool active = hostActiveFlag;
-    if (active == observedHostActive) return;
-    observedHostActive = active;
-    if (active) {
-        // Close all open file handles before the computer starts changing FAT.
+bool setEnabled(bool enabled) {
+    if (enabled == shared) return true;
+    changed = true;
+    if (enabled) {
+        if (!mscReady || !Storage::available() || SD.sectorSize() != SectorSize || !SD.numSectors()) {
+            stateText = "USB SD: card unavailable";
+            return false;
+        }
+        // All application SD access runs on the Arduino loop. Close files before
+        // allowing the USB task to access raw sectors.
         MediaPlayer::stop();
         VideoPlayer::stop();
-        stateText = "USB SD: computer connected";
+        Storage::suspendAppAccess();
+        IoLock lock;
+        cardSectorCount = SD.numSectors();
+        usbStorageMsc.begin(cardSectorCount, SectorSize);
+        releaseRequested.store(false);
+        ioEnabled = shared = true;
+        usbStorageMsc.mediaPresent(true);
+        stateText = "USB SD: sharing";
     } else {
-        Storage::resumeAppAccess();
-        Storage::refresh();
-        stateText = mscReady ? "USB SD: safely ejected" : "USB SD: no card";
+        // Drain in-flight I/O before invalidating the device-side FAT cache.
+        {
+            IoLock lock;
+            ioEnabled = false;
+            usbStorageMsc.mediaPresent(false);
+        }
+        const bool mounted = Storage::remount();
+        shared = false;
+        stateText = mounted ? "USB SD: off" : "USB SD: remount failed";
     }
+    return true;
 }
-
+void loop() {
+    if (releaseRequested.exchange(false) && shared) setEnabled(false);
+}
 bool available() { return mscReady && Storage::available(); }
-bool hostActive() { return hostActiveFlag; }
+bool hostActive() { return shared; }
+bool dirty() { const bool result = changed; changed = false; return result; }
 const char* status() { return stateText; }
 }

@@ -16,7 +16,7 @@
 class LauncherApp final : public App {
 public:
     const char* title() const override { return "Cardputer Adv Hub"; }
-    void update() override {}
+    void update() override { if (!UsbStorageService::hostActive()) confirmUsbStop_=false; }
     void onInput(const InputEvent& e) override {
         if(e.type!=InputType::Key) return;
         const char key=static_cast<char>(tolower(static_cast<unsigned char>(e.key)));
@@ -72,11 +72,20 @@ public:
             } else if(!videoMode_ && (e.key=='+' || e.key=='=')) MediaPlayer::setVolume(std::min(100,MediaPlayer::volume()+5));
             else if(!videoMode_ && e.key=='-') MediaPlayer::setVolume(std::max(0,MediaPlayer::volume()-5));
         } else if(screen_==5) {
-            if(up(e,key)) setting_=(setting_+2)%3;
-            else if(down(e,key)) setting_=(setting_+1)%3;
+            if(up(e,key)) setting_=(setting_+3)%4;
+            else if(down(e,key)) setting_=(setting_+1)%4;
+            else if(e.key=='\n' && !e.repeat && setting_==3) { confirmUsbStop_=false; enter(6); }
             else if(e.key=='+' || e.key=='=' || e.code==0x4f) adjust(1);
             else if(e.key=='-' || e.code==0x50) adjust(-1);
             else if(key=='r' && !e.repeat) Storage::refresh();
+        } else if(screen_==6 && !e.repeat) {
+            if (confirmUsbStop_) {
+                if (key=='y') { UsbStorageService::setEnabled(false); confirmUsbStop_=false; }
+                else if (key=='n') confirmUsbStop_=false;
+            } else if(e.key=='\n') {
+                if (UsbStorageService::hostActive()) confirmUsbStop_=true;
+                else UsbStorageService::setEnabled(true);
+            }
         }
     }
     void draw() override {
@@ -88,12 +97,14 @@ public:
         case 3: drawIr(); break;
         case 4: drawMedia(); break;
         case 5: drawSettings(); break;
+        case 6: drawUsbStorage(); break;
         }
         Ui::present();
     }
 private:
     uint8_t screen_=0,selected_=0,setting_=0;
     bool videoMode_=false,diagnostics_=false;
+    bool confirmUsbStop_=false;
     static bool up(const InputEvent& e,char key) { return e.code==0x52 || key=='w' || key=='k'; }
     static bool down(const InputEvent& e,char key) { return e.code==0x51 || key=='s' || key=='j'; }
     void home() {
@@ -236,9 +247,29 @@ private:
         snprintf(text,sizeof(text),"Brightness   %u / 255",AppSettings::brightness()); Ui::item(0,text,setting_==0);
         snprintf(text,sizeof(text),"Volume       %u %%",AppSettings::volume()); Ui::item(1,text,setting_==1);
         snprintf(text,sizeof(text),"MJPEG speed  %u fps",AppSettings::videoFps()); Ui::item(2,text,setting_==2);
-        snprintf(text,sizeof(text),"SD: %s   Free RAM: %uK",Storage::available()?"ready":"absent",ESP.getFreeHeap()/1024); Ui::line(86,text,TFT_CYAN);
-        Ui::line(104,"Changes saved automatically");
-        Ui::footer("W/S:select +/-:change Fn+Q:home");
+        snprintf(text,sizeof(text),"USB SD sharing  %s >",UsbStorageService::hostActive()?"ON":"OFF"); Ui::item(3,text,setting_==3);
+        snprintf(text,sizeof(text),"SD: %s   Free RAM: %uK",Storage::available()?"ready":"absent",ESP.getFreeHeap()/1024); Ui::line(104,text,TFT_CYAN);
+        Ui::footer(setting_==3?"Enter:open USB SD  Fn+Q:home":"W/S:select +/-:change Fn+Q:home");
+    }
+    void drawUsbStorage() {
+        Ui::header("USB SD sharing");
+        Ui::line(28,UsbStorageService::status(),UsbStorageService::hostActive()?TFT_GREEN:TFT_CYAN);
+        if(confirmUsbStop_) {
+            Ui::line(50,"Eject SD on computer first",TFT_YELLOW);
+            Ui::line(70,"Then Y: stop sharing");
+            Ui::line(90,"N: keep sharing");
+        } else if(UsbStorageService::hostActive()) {
+            Ui::line(50,"Computer can read/write SD");
+            Ui::line(70,"SD apps paused while sharing");
+            Ui::line(90,"Safely eject on PC to finish");
+            Ui::line(108,"Enter: stop sharing");
+        } else {
+            Ui::line(50,"SD belongs to this device");
+            Ui::line(70,"Connect USB, then Enter");
+            Ui::line(90,"Enter: enable PC read/write");
+            Ui::line(108,"Sharing is OFF after reboot");
+        }
+        Ui::footer("Fn+Q:home (keeps sharing state)");
     }
 };
 App* createLauncherApp() { return new LauncherApp(); }

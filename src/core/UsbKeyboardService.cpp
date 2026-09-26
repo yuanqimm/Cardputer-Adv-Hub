@@ -18,14 +18,34 @@
 #undef KEY_RETURN
 #undef KEY_ESC
 #include "USB.h"
+#include "USBCDC.h"
 #include "USBHIDKeyboard.h"
+#include "USBMSC.h"
 
 #include "core/KeyMapping.h"
 #include <cstring>
 #include <tusb.h>
+// Explicit HID registration mirrors the Arduino composite-device example.
+// USBHIDKeyboard owns another USBHID helper, but the helper only registers the
+// interface once; declaring it first makes the interface order deterministic.
+#if !ARDUINO_USB_CDC_ON_BOOT
+USBCDC usbSerial;
+#endif
+USBHID usbHid;
 namespace { USBHIDKeyboard keyboard; }
+// Keep both interfaces registered before the CDC-on-boot core starts USB.
+// UsbStorageService configures this object but exposes media only on request.
+USBMSC usbStorageMsc;
 namespace UsbKeyboardService {
-void begin() { keyboard.begin(); USB.begin(); }
+void begin() {
+    // The configured CDC-on-boot build has already started USB. begin() is
+    // idempotent; the conditional CDC object supports manual-start builds.
+#if !ARDUINO_USB_CDC_ON_BOOT
+    usbSerial.begin();
+#endif
+    keyboard.begin();
+    USB.begin();
+}
 bool connected() { return tud_mounted(); }
 void update(bool enabled) {
     static KeyReport previous = {};

@@ -2,6 +2,7 @@
 #define SEND_PWM_BY_TIMER
 #define IR_TX_PIN 44
 #include "core/IrRemote.h"
+#include "core/Storage.h"
 #include <IRremote.hpp>
 #include <ArduinoJson.h>
 #include <SD.h>
@@ -89,6 +90,7 @@ void sendButton(uint8_t index) {
     message = "Sent: " + b.label;
 }
 bool loadProfile() {
+    if (!Storage::appAccessAllowed()) { message = "USB computer is using SD"; return false; }
     File file = SD.open("/config/ir.json", FILE_READ);
     if (!file) { message = "No /config/ir.json (demo)"; return false; }
     if (file.size() > 16384) { message = "IR config exceeds 16KB"; return false; }

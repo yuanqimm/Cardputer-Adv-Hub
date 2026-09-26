@@ -7,10 +7,11 @@ M5Stack Cardputer-Adv 的 SSH 终端、USB/BLE 双模键盘、红外遥控和 SD
 ```powershell
 platformio run
 platformio run --target upload --upload-port COM12
-platformio device monitor --port COM8 --baud 115200
+platformio device list
+platformio device monitor --port COM17 --baud 115200
 ```
 
-端口以电脑实际枚举为准。正常运行使用 TinyUSB HID + CDC；下载模式通常为 COM12，运行时通常为 COM8。若自动下载握手失败，可通过 CDC 1200 波特率进入下载模式，或按住 G0/BOOT 重新插入 USB 后松开。依赖版本固定在 `platformio.ini`。
+端口以 `platformio device list` 的实际结果为准。正常运行使用 TinyUSB HID + CDC + MSC；最近实测下载端口 COM12、运行端口 COM17（早期为 COM8）。若自动下载握手失败，可按住 G0/BOOT 重新插入 USB 后松开进入下载模式。烧录后若仍停在下载模式，请松开 G0 正常重启。仅看到 ROM CDC/JTAG 或 `waiting for download` 不代表应用崩溃，也不能据此认定 G0 一直被按住。依赖版本固定在 `platformio.ini`。
 
 ## 日常操作
 
@@ -25,6 +26,7 @@ platformio device monitor --port COM8 --baud 115200
 | 媒体 | R 重新扫描 SD 文件 |
 | 红外 | 1–9 发射对应按键，N 切换设备，R 重载配置 |
 | 设置 | W/S 选择，+/- 或 Fn 左右方向键调整；亮度、音量、视频帧率自动保存 |
+| USB SD sharing | Settings 第四项，Enter 打开页面，再 Enter 开启；默认 OFF；电脑安全弹出后自动关闭，Fn+Q 返回主页保留当前状态 |
 
 键盘映射：Fn+`;` 上、Fn+`.` 下、Fn+`,` 左、Fn+`/` 右、Fn+反引号 Escape、Fn+Backspace Delete。Opt 映射 Win/Command。USB 支持保持按键直至实际松开，主机负责长按重复；SSH 与菜单支持本地重复。
 
@@ -48,7 +50,11 @@ platformio device monitor --port COM8 --baud 115200
 
 ### USB 读取/写入 SD 卡
 
-Cardputer 接入电脑 USB 后会同时枚举为键盘、串口和 **Cardputer SD** 移动磁盘（需要已插入 FAT32 SD 卡）。电脑可以直接复制、新建、修改和删除文件，适合后续管理音乐、视频和配置。USB 主机接管 SD 后，设备会自动停止媒体播放并暂停应用层扫描；屏幕显示 `USB SD connected` 时只让电脑访问 SD 卡。完成操作后请在 Windows 中执行“安全弹出/弹出”再拔线或重新使用播放器，设备会重新扫描目录。不要在电脑仍挂载磁盘时拔卡，也不要让播放器和电脑同时写入 FAT 文件系统。
+USB SD 共享每次开机默认关闭。进入 **Settings → USB SD sharing**（W/S 选择，Enter 打开），在共享页面按 **Enter** 才允许电脑读取/写入 SD 卡。需要已插入 FAT32 SD 卡；未识别到卡时会提示不可用。USB 存储接口一直保留，但关闭状态对电脑报告“无介质”，不能读取卡中的文件。
+
+开启前会停止音乐/视频播放并关闭文件，暂停设备端 SD 扫描以及 SSH/红外配置读取；电脑可以复制、新建、修改和删除文件。Fn+Q 回到主页会保留当前共享状态。完成后在电脑上“安全弹出/弹出”，设备会自动关闭共享并重新挂载 SD、刷新目录；也可以先在电脑弹出，再在共享页面按 Enter、Y 手动关闭（N 取消）。重新共享需要再次按 Enter。共享开关不写入配置，重启后仍为关闭。请勿在电脑写入时拔卡或强行关闭共享。
+
+### 视频格式与转换
 
 视频支持 JPEG 图片轮播和无音轨的原始 MJPEG。MP4/H.264、普通 AVI、GIF **不能直接播放**。在电脑安装 ffmpeg 后转换：
 
@@ -131,7 +137,7 @@ g++ -std=c++11 -Wall -Wextra -Werror -I include tests/native/test_core.cpp -o te
 
 `src/core` 是硬件与网络服务，`src/media` 是解码/播放，`src/apps` 是页面和输入路由，`sd-card` 是示例资源，`tools` 是电脑辅助脚本。复用的本地 ESP8266Audio 保留原许可证。
 
-本轮编译、烧录和原生测试的结果及待实测项目见 `docs/features-validation.md`。
+当前功能状态、技术约束和接续开发入口见 [开发接续文档](docs/PROJECT-CONTEXT.md)。验证证据和回归清单见 [功能验证记录](docs/features-validation.md)。2026-09-26 用户已确认 USB SD 手动共享功能完成。
 
 ## Git 版本管理
 
