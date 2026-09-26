@@ -1,4 +1,5 @@
 #include "app/App.h"
+#include "app/SdStorage.h"
 #include "core/Ui.h"
 #include "core/Storage.h"
 #include "core/AppSettings.h"
@@ -16,9 +17,14 @@
 class LauncherApp final : public App {
 public:
     const char* title() const override { return "Cardputer Adv Hub"; }
-    void update() override { if (!UsbStorageService::hostActive()) confirmUsbStop_=false; }
+    void update() override {
+        if (!UsbStorageService::hostActive()) confirmUsbStop_=false;
+        if (screen_==4) SdStorage::update();
+    }
     void onInput(const InputEvent& e) override {
         if(e.type!=InputType::Key) return;
+        // The file editor owns printable keys and confirms unsaved text on exit.
+        if(screen_==4) { if(SdStorage::onInput(e)) home(); return; }
         const char key=static_cast<char>(tolower(static_cast<unsigned char>(e.key)));
         if(e.fn && key=='q') { if(!e.repeat) home(); return; }
         if(screen_==2) {
@@ -58,26 +64,12 @@ public:
             if(key>='1' && key<='9') IrRemote::sendButton(key-'1');
             if(key=='n') IrRemote::nextProfile();
             if(key=='r') IrRemote::loadProfile();
-        } else if(screen_==4) {
-            if(key=='v' && !e.repeat) {
-                MediaPlayer::stop(); VideoPlayer::stop(); videoMode_=!videoMode_;
-            } else if(key=='r' && !e.repeat) {
-                MediaPlayer::stop(); VideoPlayer::stop(); Storage::refresh();
-            } else if(key=='p' && !e.repeat) {
-                if(videoMode_) VideoPlayer::toggle(); else MediaPlayer::toggle();
-            } else if((key=='n' || e.code==0x4f) && !e.repeat) {
-                if(videoMode_) VideoPlayer::next(); else MediaPlayer::next();
-            } else if((key=='b' || e.code==0x50) && !e.repeat) {
-                if(videoMode_) VideoPlayer::previous(); else MediaPlayer::previous();
-            } else if(!videoMode_ && (e.key=='+' || e.key=='=')) MediaPlayer::setVolume(std::min(100,MediaPlayer::volume()+5));
-            else if(!videoMode_ && e.key=='-') MediaPlayer::setVolume(std::max(0,MediaPlayer::volume()-5));
         } else if(screen_==5) {
             if(up(e,key)) setting_=(setting_+3)%4;
             else if(down(e,key)) setting_=(setting_+1)%4;
             else if(e.key=='\n' && !e.repeat && setting_==3) { confirmUsbStop_=false; enter(6); }
             else if(e.key=='+' || e.key=='=' || e.code==0x4f) adjust(1);
             else if(e.key=='-' || e.code==0x50) adjust(-1);
-            else if(key=='r' && !e.repeat) Storage::refresh();
         } else if(screen_==6 && !e.repeat) {
             if (confirmUsbStop_) {
                 if (key=='y') { UsbStorageService::setEnabled(false); confirmUsbStop_=false; }
@@ -95,7 +87,7 @@ public:
         case 1: drawSsh(); break;
         case 2: drawKeyboard(); break;
         case 3: drawIr(); break;
-        case 4: drawMedia(); break;
+        case 4: SdStorage::draw(); break;
         case 5: drawSettings(); break;
         case 6: drawUsbStorage(); break;
         }
@@ -103,19 +95,19 @@ public:
     }
 private:
     uint8_t screen_=0,selected_=0,setting_=0;
-    bool videoMode_=false,diagnostics_=false;
+    bool diagnostics_=false;
     bool confirmUsbStop_=false;
     static bool up(const InputEvent& e,char key) { return e.code==0x52 || key=='w' || key=='k'; }
     static bool down(const InputEvent& e,char key) { return e.code==0x51 || key=='s' || key=='j'; }
     void home() {
         if(screen_==1) SshService::disconnect();
-        if(screen_==4) { MediaPlayer::stop(); VideoPlayer::stop(); }
+        if(screen_==4) SdStorage::end();
         KeyboardManager::setActive(false); screen_=0;
     }
     void enter(uint8_t page) {
         screen_=page;
         KeyboardManager::setActive(page==2);
-        if(page==4) Storage::refresh();
+        if(page==4) SdStorage::begin();
     }
     void adjust(int direction) {
         if(setting_==0) AppSettings::setBrightness(AppSettings::brightness()+direction*16);
@@ -124,7 +116,7 @@ private:
     }
     void drawHome() {
         Ui::header("Cardputer Adv Hub");
-        const char* names[]={"SSH Terminal","Keyboard","IR Remote","Media Player","Settings"};
+        const char* names[]={"SSH Terminal","Keyboard","IR Remote","SD Storage","Settings"};
         for(int i=0;i<5;++i) Ui::item(i,names[i],i==selected_);
         Ui::footer("W/S: select   Enter: open");
     }
@@ -216,31 +208,6 @@ private:
         }
         Ui::line(104,IrRemote::status(),TFT_YELLOW);
         Ui::footer("N: device  R: reload  Fn+Q:home");
-    }
-    void drawMedia() {
-        Ui::header(videoMode_?"Video Player":"Music Player");
-        if(UsbStorageService::hostActive()) {
-            Ui::line(38,"USB SD connected",TFT_YELLOW);
-            Ui::line(58,"Safely eject on PC first");
-            Ui::line(78,"then return to media");
-        } else if(!Storage::available()) {
-            Ui::line(38,"Insert FAT32 SD and reboot",TFT_YELLOW);
-            Ui::line(64,"/music: MP3 WAV"); Ui::line(84,"/video: JPEG MJPEG");
-        } else if(videoMode_) {
-            VideoPlayer::render();
-            if(!VideoPlayer::isPlaying()) Ui::line(104,VideoPlayer::status(),TFT_CYAN);
-        } else {
-            char text[48];
-            snprintf(text,sizeof(text),"Track %u / %u",Storage::mediaCount("/music")?MediaPlayer::index()+1:0,Storage::mediaCount("/music"));
-            Ui::line(28,text,TFT_CYAN); Ui::line(48,MediaPlayer::currentName());
-            Ui::line(66,MediaPlayer::status(),TFT_GREEN);
-            const uint32_t sec=MediaPlayer::elapsedSeconds();
-            snprintf(text,sizeof(text),"%lu:%02lu  Vol:%u%%  File:%u%%",static_cast<unsigned long>(sec/60),static_cast<unsigned long>(sec%60),MediaPlayer::volume(),MediaPlayer::progress());
-            Ui::line(84,text);
-            Ui::canvas().drawRect(8,104,224,5,TFT_DARKGREY);
-            Ui::canvas().fillRect(9,105,222*MediaPlayer::progress()/100,3,TFT_CYAN);
-        }
-        Ui::footer("P:play N/B:skip V:mode Fn+Q:home");
     }
     void drawSettings() {
         Ui::header("Settings"); char text[48];

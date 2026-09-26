@@ -8,7 +8,7 @@ enum class AppId : uint8_t {
     Ssh,
     Keyboard,
     Infrared,
-    Media,
+    SdStorage,
     Settings,
 };
 

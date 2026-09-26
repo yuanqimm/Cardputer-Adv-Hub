@@ -11,6 +11,7 @@
 #include "core/BleKeyboardService.h"
 #include "core/AppSettings.h"
 #include "core/UsbStorageService.h"
+#include "core/FileManager.h"
 
 App* createLauncherApp();
 // LibSSH-ESP32's upstream client uses a 51200-byte task stack for crypto.
@@ -41,6 +42,7 @@ void setup() {
 void loop() {
     M5Cardputer.update();
     UsbStorageService::loop();
+    FileManager::loop();
     SshService::loop();
     MediaPlayer::loop();
     VideoPlayer::loop();
@@ -51,10 +53,11 @@ void loop() {
     const bool bleDirty = BleKeyboardService::dirty();
     const bool mediaDirty = MediaPlayer::dirty();
     const bool storageDirty = UsbStorageService::dirty();
+    const bool fileDirty = FileManager::dirty();
     if (event.type != InputType::None) {
         currentApp->onInput(event);
         currentApp->draw();
-    } else if (sshDirty || videoDirty || bleDirty || mediaDirty || storageDirty) {
+    } else if (sshDirty || videoDirty || bleDirty || mediaDirty || storageDirty || fileDirty) {
         currentApp->draw();
     }
     KeyboardManager::update();

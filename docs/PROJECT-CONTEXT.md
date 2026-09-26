@@ -8,7 +8,7 @@
 - 功能目标：便携 SSH、USB/BLE 双模键盘、红外遥控、SD 音乐/视频、简洁独立页面；保留后续扩展能力。
 - 优先整合已有方案，保留第三方许可证；缺少的部分自行实现。
 - 当前仍为 PlatformIO + Arduino + VS Code。后续路线是 ESP-IDF + Arduino Component，不是已经完成迁移。
-- 最新用户反馈：“功能完成，整理代码和上下文”。对应 USB SD 手动共享功能已验收；当前无新增功能要求。
+- USB SD 手动共享已获用户确认。最新需求：Media Player 更名 SD Storage，改为类似电脑的文件夹浏览及 SD 读写操作，同时支持音频/视频，并参考已有项目。
 
 ## 工程和工具
 
@@ -28,7 +28,8 @@
 | 键盘 | KeyboardManager / UsbKeyboardService / BleKeyboardService | 用户曾确认 USB、Win11 BLE 和小米 14 N2 成功；完整键位回归清单保留 |
 | Wi-Fi / SSH | src/core/SshService.cpp | 扫描、密码输入、NVS 记忆、SSH 登录、主机指纹和交互终端已实现；完整真实服务器验收见验证文档 |
 | 红外 | src/core/IrRemote.cpp | GPIO44 发射，多设备 JSON；真实协议/地址/命令需设备验收；学习需外接接收器 |
-| 音视频 | src/media、src/core/Storage.cpp | MP3/WAV、JPEG/原始 MJPEG；不直接支持 MP4/H.264，播放器完整实测尚待记录 |
+| SD Storage | src/apps/SdStorage.cpp、src/core/FileManager.cpp | 多级目录、文件读写/复制/移动/删除/属性、4 KiB 文本编辑；64 项分页；新功能待实机验收 |
+| 音视频 | src/media | 从任意文件夹打开 MP3/WAV、JPEG/原始 MJPEG；不直接支持 MP4/H.264，播放器完整实测尚待记录 |
 | USB SD | src/core/UsbStorageService.cpp | 2026-09-26 用户确认手动共享功能完成 |
 | 显示 | src/core/Ui.cpp | 240×135、8 位帧缓冲和内容哈希抑制重复刷屏；用户确认闪烁已解决 |
 
@@ -66,6 +67,8 @@ platformio device list
 platformio run --target upload --upload-port COM12
 g++ -std=c++11 -Wall -Wextra -Werror -I include tests/native/test_core.cpp -o test-core.exe
 ./test-core.exe
+g++ -std=c++17 -Wall -Wextra -Werror -I tests/native/storage_stubs -I include src/core/FileManager.cpp tests/native/test_file_manager.cpp -o .diagnostics/test-file-manager.exe
+./.diagnostics/test-file-manager.exe
 git diff --check
 ```
 
@@ -73,12 +76,17 @@ git diff --check
 
 交付 USB SD 固件已编译并烧录校验成功，正常重启后检测到 MSC/HID/CDC 以及 COM17。共享关闭时 E: 未就绪；随后用户确认功能完成。完整压力测试、文件哈希校验和其他功能的回归未逐项记录，不能声称全部通过。
 
+其后的 SD Storage 固件已构建并通过 COM12 烧录/写入校验，RAM 88332、Flash 1583833 字节，两套原生测试通过。烧录后仍枚举 ROM 下载端口，已请用户不按 G0 正常重插，等待确认启动和文件列表；不能把此状态解释为应用崩溃，新增操作的实机验收仍待完成。
+
 此前的 `boot:0x3 (DOWNLOAD)` / `waiting for download` 只说明处于下载模式；不能据此认定应用崩溃、硬件 USB 抢占或 G0 一直被按住。没有捕获确定重启根因的 panic 栈，后续如复发应先取日志。
 
 ## 后续开发和资料
 
 - 已完成 USB SD 的常规交付；仅在出现新证据或回归失败时继续排障。
-- 后续按用户新需求推进；可优先完成真实 SSH 会话、音视频、红外的完整实机验收，不能自行视为新授权的功能扩展。
+- 本轮 SD Storage：已参考 Bruce 文件浏览器/音频页面与 M5Stack 官方 SD 示例，未复制 Bruce AGPL 源码；引用及设计边界见 docs/sd-storage-reference.md。
+- 已移除旧 `/music`、`/video` 常驻索引及上一首/下一首接口；文件管理是唯一播放入口，播放结束停止。媒体分配前释放目录列表。
+- FileManager 检查 SD 所有权；Storage::suspendAppAccess 取消复制并释放列表，归还时重新挂载。文本编辑未保存退出需确认，文件操作不覆盖同名目标。
+- 后续先按 features-validation.md 验收新 SD Storage；真实 SSH、媒体和红外的完整测试状态仍应区分记录。
 - README：当前使用说明、文件格式和开发命令。
 - docs/features-validation.md：用户反馈、已执行证据与待测边界。
 - docs/BLE-N1-validation.md：N1 → N2 历史，不能把其中 N1 故障当成当前状态。

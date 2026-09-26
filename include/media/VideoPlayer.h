@@ -4,12 +4,11 @@
 
 namespace VideoPlayer {
 bool begin();
+bool playFile(const char* path);
 void loop();
 void stop();
 const char* status();
 bool toggle();
-bool next();
-bool previous();
 bool isPlaying();
 bool dirty();
 const char* currentName();

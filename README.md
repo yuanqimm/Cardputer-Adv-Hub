@@ -1,6 +1,6 @@
 # Cardputer Adv Hub
 
-M5Stack Cardputer-Adv 的 SSH 终端、USB/BLE 双模键盘、红外遥控和 SD 媒体中心。开发环境为 VS Code + PlatformIO + Arduino，保留后续 ESP-IDF + Arduino Component 的迁移路线。当前是逐步完善的固件，不把编译通过视作所有硬件功能已经实测。
+M5Stack Cardputer-Adv 的 SSH 终端、USB/BLE 双模键盘、红外遥控和 SD 文件管理中心。开发环境为 VS Code + PlatformIO + Arduino，保留后续 ESP-IDF + Arduino Component 的迁移路线。当前是逐步完善的固件，不把编译通过视作所有硬件功能已经实测。
 
 ## 编译和烧录
 
@@ -18,12 +18,13 @@ platformio device monitor --port COM17 --baud 115200
 | 页面 | 操作 |
 |---|---|
 | 启动器 | W/S、K/J 或 Fn 方向键选择，Enter 进入 |
-| 全部页面 | **Fn+Q 返回首页**；离开 SSH 会断开 SSH 会话但保留 Wi-Fi，离开媒体会停止播放；顶部三格图标表示 Wi-Fi 已连接，叉号表示未连接 |
+| 全部页面 | **Fn+Q 返回首页**；文本未保存时先确认；离开 SSH 会断开 SSH 会话但保留 Wi-Fi，离开媒体会停止播放；顶部三格图标表示 Wi-Fi 已连接，叉号表示未连接 |
 | Keyboard | Fn+M 切换 USB / Bluetooth / 双发，Fn+D 查看诊断，Fn+R 清除全部 BLE 配对 |
 | SSH | C 扫描附近 Wi-Fi，W/S 或 Fn 方向键选择，Enter 连接；陌生加密网络会进入密码输入框；Wi-Fi 成功后依次输入 SSH 主机/IP、用户名、密码；I 重新打开 SSH 登录输入；H 打开已成功连接的历史配置；D 直接使用 SD 配置；E 重新输入当前 Wi-Fi 密码；首次遇到主机时校验指纹后按 T 信任并保存 |
-| 音乐 | P 播放/暂停/继续，N/B 下一首/上一首，+/- 音量，V 切换视频 |
-| 视频 | P 播放/暂停/继续，N/B 换文件，V 切换音乐；到文件尾停止 |
-| 媒体 | R 重新扫描 SD 文件 |
+| SD Storage | W/S、K/J 或 Fn 方向键选择，Enter 打开，Backspace/Esc 返回上级，M 操作菜单，R 刷新；根目录 Backspace 返回首页 |
+| 文件操作 | M 菜单选择新建文件夹/文本、重命名、复制、剪切、粘贴、删除或属性；Ctrl+C/Ctrl+X 复制/剪切，进入目标文件夹后 V 粘贴；删除需 Y 确认 |
+| 文本 | Enter 查看，E 编辑，Fn 方向键移动光标，Ctrl+S 保存；Esc 退出编辑，修改未保存时 Y 放弃/N 继续 |
+| 音频/视频 | 从文件列表 Enter 打开；P/空格暂停或继续，音频 +/- 音量；Backspace 返回文件列表，播放到尾停止 |
 | 红外 | 1–9 发射对应按键，N 切换设备，R 重载配置 |
 | 设置 | W/S 选择，+/- 或 Fn 左右方向键调整；亮度、音量、视频帧率自动保存 |
 | USB SD sharing | Settings 第四项，Enter 打开页面，再 Enter 开启；默认 OFF；电脑安全弹出后自动关闭，Fn+Q 返回主页保留当前状态 |
@@ -44,9 +45,15 @@ platformio device monitor --port COM17 --baud 115200
 /config/ir.json
 ```
 
-启动时会创建缺失的目录，但不会自动写入账号或遥控配置。每个媒体目录最多索引 128 个文件，按文件名排序，忽略隐藏文件；文件名最多 140 字节。不支持递归子目录。音频列表只收 MP3/WAV，视频列表只收 JPG/JPEG/MJPG/MJPEG。
+启动时会创建缺失的示例目录，但不会自动写入账号或遥控配置。**SD Storage 从根目录开始浏览，支持进入多级文件夹，并从任意目录打开文件**，不要求媒体必须放在 `/music`、`/video`。
 
-音乐显示文件名、播放状态、已输出采样的时长、音量和**文件读取进度**；读取百分比不等于精确的音频时间百分比。P 暂停后可继续同一曲目，多曲目正常到尾时自动播放下一首。切换音乐/视频时会关闭前一种播放器以释放内存。
+文件夹优先、文件名排序；每批最多保留 64 项以控制内存，超过时选择 `[More files...]` 或按 Fn+右进入下一批，Fn+左返回上一批。普通上下键翻动屏幕内列表。路径最多 240 字节、单个名称最多 120 字节，过长或不兼容 FAT/Windows 的名称不支持；保留 `.hub-tmp`、`.hub-bak` 作为临时/恢复文件。若异常断电留下这些文件，请通过电脑检查恢复，固件不会覆盖它们。
+
+支持新建文件夹和文本、重命名、复制文件、移动文件或文件夹、查看属性，以及删除文件或**空文件夹**；不递归删除或复制文件夹，不覆盖同名目标。复制以分段方式进行，显示进度，可按 Backspace/Esc 取消；退出页面也会取消未完成复制。文本支持 TXT/JSON/INI/CFG/CSV/MD/LOG，最大 4 KiB；支持输入 ASCII、换行、光标编辑，非 ASCII 显示为 `?`，未编辑的 UTF-8 原始字节保留，支持 CRLF。保存先写临时文件，再备份和替换原文件，失败时尝试恢复；这不等于 FAT 断电事务保证。
+
+音频支持 MP3/WAV，显示文件名、播放状态、已输出采样的时长、音量和**文件读取进度**；读取百分比不等于精确的音频时间百分比。P 暂停后可继续同一曲目，播放到尾停止，返回列表选择其他文件。打开播放器前释放目录列表并关闭前一个播放器，以给没有 PSRAM 的设备保留内存。其他格式可以复制/移动/删除，但不提供解码预览。
+
+文件管理流程参考 Bruce 文件浏览器，SD 接口参考 M5Stack 官方示例，参考范围及许可证见 [SD Storage 参考与设计](docs/sd-storage-reference.md)。
 
 ### USB 读取/写入 SD 卡
 
@@ -56,13 +63,13 @@ USB SD 共享每次开机默认关闭。进入 **Settings → USB SD sharing**�
 
 ### 视频格式与转换
 
-视频支持 JPEG 图片轮播和无音轨的原始 MJPEG。MP4/H.264、普通 AVI、GIF **不能直接播放**。在电脑安装 ffmpeg 后转换：
+支持查看 JPEG 图片和播放无音轨的原始 MJPEG。MP4/H.264、普通 AVI、GIF **不能直接播放**。在电脑安装 ffmpeg 后转换：
 
 ```powershell
 python tools/convert_video.py input.mp4 output.mjpeg --fps 12
 ```
 
-转换为 240×96、12 fps，复制到 `/video`；设置页选择相同帧率。实际帧率受 SD 卡和解码耗时影响。单帧压缩数据上限 40 KiB，超限显示错误，不无限分配内存。转换脚本拒绝覆盖已有输出文件。普通 JPEG 使用原生 JPEG 解码器显示，过大图片会受显示区域裁剪。
+转换为 240×96、12 fps，复制到 SD 上任意文件夹（例如 `/video`），在 SD Storage 中打开；设置页选择相同帧率。实际帧率受 SD 卡和解码耗时影响。单帧压缩数据上限 40 KiB，超限显示错误，不无限分配内存。转换脚本拒绝覆盖已有输出文件。普通 JPEG 使用原生 JPEG 解码器显示，过大图片会受显示区域裁剪。
 
 ## SSH
 
@@ -133,7 +140,14 @@ g++ -std=c++11 -Wall -Wextra -Werror -I include tests/native/test_core.cpp -o te
 ./test-core.exe
 ```
 
-显示仍使用 240×135、8 位画面缓冲，完整绘制后提交，内容未变化时不刷新。本轮修改前已保存 N2 源码与固件到 `.diagnostics/baseline-n2`，该备份不含蓝牙 NVS 数据。
+文件操作测试将实际 `FileManager.cpp` 链接到主机临时文件系统适配器，检查分页、读写、复制取消、失败恢复和 USB 所有权；不会操作真实 SD：
+
+```powershell
+g++ -std=c++17 -Wall -Wextra -Werror -I tests/native/storage_stubs -I include src/core/FileManager.cpp tests/native/test_file_manager.cpp -o .diagnostics/test-file-manager.exe
+./.diagnostics/test-file-manager.exe
+```
+
+显示仍使用 240×135、8 位画面缓冲，完整绘制后提交，内容未变化时不刷新。历史 N2 源码与固件备份位于 `.diagnostics/baseline-n2`，该备份不含蓝牙 NVS 数据。
 
 `src/core` 是硬件与网络服务，`src/media` 是解码/播放，`src/apps` 是页面和输入路由，`sd-card` 是示例资源，`tools` 是电脑辅助脚本。复用的本地 ESP8266Audio 保留原许可证。
 

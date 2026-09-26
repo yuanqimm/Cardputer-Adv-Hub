@@ -4,15 +4,13 @@
 
 namespace MediaPlayer {
 bool begin();
+bool playFile(const char* path);
 void loop();
 void stop();
 bool toggle();
-bool next();
-bool previous();
 bool isPlaying();
 bool dirty();
 const char* status();
-uint16_t index();
 uint32_t elapsedSeconds();
 uint8_t progress();
 const char* currentName();
