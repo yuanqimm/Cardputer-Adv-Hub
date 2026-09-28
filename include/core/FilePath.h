@@ -52,7 +52,7 @@ inline Kind kind(const std::string& path) {
     const auto ext = dot == std::string::npos ? "" : name.substr(dot);
     if (ext == ".mp3" || ext == ".wav") return Kind::Audio;
     if (ext == ".mjpeg" || ext == ".mjpg") return Kind::Video;
-    if (ext == ".jpg" || ext == ".jpeg") return Kind::Image;
+    if (ext == ".jpg" || ext == ".jpeg" || ext == ".png" || ext == ".bmp") return Kind::Image;
     if (ext == ".txt" || ext == ".json" || ext == ".ini" || ext == ".cfg" || ext == ".csv" || ext == ".md" || ext == ".log") return Kind::Text;
     return Kind::Other;
 }

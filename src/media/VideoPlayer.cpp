@@ -8,6 +8,8 @@
 #include <memory>
 namespace {
 bool playing = false, changed = false, validFrame = false, mjpeg = false;
+enum class ImageFormat { Jpeg, Png, Bmp };
+ImageFormat imageFormat = ImageFormat::Jpeg;
 uint32_t nextFrame = 0;
 constexpr size_t FrameCapacity = 40 * 1024;
 constexpr int ImageTop = 19;
@@ -25,11 +27,20 @@ bool drawJpeg(const uint8_t* data, size_t size) {
     return Ui::canvas().drawJpg(data, size, 0, ImageTop, ImageWidth, ImageHeight,
                                 0, 0, 1.0f, 0.0f, datum_t::middle_center);
 }
-bool drawJpegFile(const char* file) {
+bool drawImageFile(const char* file) {
     File image = SD.open(file, FILE_READ);
     if (!image || image.isDirectory()) return false;
-    return Ui::canvas().drawJpg(&image, 0, ImageTop, ImageWidth, ImageHeight,
-                                0, 0, 1.0f, 0.0f, datum_t::middle_center);
+    switch (imageFormat) {
+    case ImageFormat::Png:
+        return Ui::canvas().drawPng(&image, 0, ImageTop, ImageWidth, ImageHeight,
+                                    0, 0, 1.0f, 0.0f, datum_t::middle_center);
+    case ImageFormat::Bmp:
+        return Ui::canvas().drawBmp(&image, 0, ImageTop, ImageWidth, ImageHeight,
+                                    0, 0, 1.0f, 0.0f, datum_t::middle_center);
+    default:
+        return Ui::canvas().drawJpg(&image, 0, ImageTop, ImageWidth, ImageHeight,
+                                    0, 0, 1.0f, 0.0f, datum_t::middle_center);
+    }
 }
 int readByte() {
     if (chunkPos == chunkSize) { chunkSize = stream.read(chunk, sizeof(chunk)); chunkPos = 0; }
@@ -60,6 +71,9 @@ bool openCurrent() {
     snprintf(name, sizeof(name), "%s", strrchr(path, '/') + 1);
     String lower(path); lower.toLowerCase();
     mjpeg = lower.endsWith(".mjpeg") || lower.endsWith(".mjpg");
+    if (lower.endsWith(".png")) imageFormat = ImageFormat::Png;
+    else if (lower.endsWith(".bmp")) imageFormat = ImageFormat::Bmp;
+    else imageFormat = ImageFormat::Jpeg;
     if (mjpeg) {
         if (ESP.getFreeHeap() < FrameCapacity + 35000) { mark("Not enough free memory"); return false; }
         frame.reset(new (std::nothrow) uint8_t[FrameCapacity]);
@@ -78,7 +92,7 @@ bool openCurrent() {
 namespace VideoPlayer {
 bool playFile(const char* file) {
     if (!file || !FilePath::valid(file) || (FilePath::kind(file) != FilePath::Kind::Video && FilePath::kind(file) != FilePath::Kind::Image)) {
-        mark("Use JPEG or raw MJPEG"); return false;
+        mark("Use JPG, PNG, BMP or raw MJPEG"); return false;
     }
     directPath = file;
     const bool opened = openCurrent();
@@ -106,11 +120,11 @@ const char* status() { return message; }
 void render() {
     if (!Storage::appAccessAllowed()) { Ui::line(54, "USB computer is using SD", TFT_YELLOW); return; }
     if (!validFrame) { Ui::line(54, message, TFT_YELLOW); return; }
-    const bool decoded = mjpeg ? drawJpeg(frame.get(), frameSize) : drawJpegFile(path);
+    const bool decoded = mjpeg ? drawJpeg(frame.get(), frameSize) : drawImageFile(path);
     if (!decoded) {
         validFrame = false;
         playing = false;
-        mark("JPEG decode failed; use baseline JPEG");
+        mark(imageFormat == ImageFormat::Png ? "PNG decode failed" : imageFormat == ImageFormat::Bmp ? "BMP decode failed" : "JPEG decode failed; use baseline");
         Ui::line(54, message, TFT_YELLOW);
     }
 }

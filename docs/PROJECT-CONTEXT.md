@@ -29,7 +29,7 @@
 | Wi-Fi / SSH | src/core/SshService.cpp | 扫描、密码输入、NVS 记忆、Wi-Fi 信息页、手动 SSH 登录、主机指纹和交互终端已实现；完整真实服务器验收见验证文档 |
 | 红外 | src/core/IrRemote.cpp | GPIO44 发射，多设备 JSON；真实协议/地址/命令需设备验收；学习需外接接收器 |
 | SD Storage | src/apps/SdStorage.cpp、src/core/FileManager.cpp | 多级目录、文件读写/复制/移动/删除/属性、4 KiB 文本编辑；64 项分页；新功能待实机验收 |
-| 音视频 | src/media | 从任意文件夹打开 MP3/WAV、JPEG/原始 MJPEG；不直接支持 MP4/H.264，播放器完整实测尚待记录 |
+| 音视频 | src/media | 从任意文件夹打开 MP3/WAV、JPEG/PNG/BMP/原始 MJPEG；不直接支持 MP4/H.264，播放器完整实测尚待记录 |
 | USB SD | src/core/UsbStorageService.cpp | 2026-09-26 用户确认手动共享功能完成 |
 | 显示 | src/core/Ui.cpp | 240×135、8 位帧缓冲和内容哈希抑制重复刷屏；用户确认闪烁已解决 |
 

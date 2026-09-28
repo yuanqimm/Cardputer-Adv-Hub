@@ -2,6 +2,7 @@
 #include "core/KeyMapping.h"
 #include "media/JpegFrame.h"
 #include "core/WifiPasswordInput.h"
+#include "core/FilePath.h"
 #include <cassert>
 #include <cstring>
 #include <iostream>
@@ -41,6 +42,8 @@ int main() {
     assert(KeyMapping::text(4,false)=='a' && KeyMapping::text(4,true)=='A');
     assert(KeyMapping::text(0x28,false)=='\n' && KeyMapping::text(0x2b,false)=='\t');
     assert(KeyMapping::text(0x33,false)==';' && KeyMapping::text(0x34,true)=='"');
+    assert(FilePath::kind("/images/test.PNG") == FilePath::Kind::Image);
+    assert(FilePath::kind("/images/test.bmp") == FilePath::Kind::Image);
     assert(KeyMapping::text(0x35,false)=='`' && KeyMapping::text(0x38,true)=='?');
     assert(KeyMapping::code(0x33,true)==0x52 && KeyMapping::code(0x37,true)==0x51);
     assert(KeyMapping::code(0x14,true)==0 && KeyMapping::code(0x14,false)==0x14);
