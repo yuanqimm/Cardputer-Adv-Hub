@@ -10,6 +10,9 @@ namespace {
 bool playing = false, changed = false, validFrame = false, mjpeg = false;
 uint32_t nextFrame = 0;
 constexpr size_t FrameCapacity = 40 * 1024;
+constexpr int ImageTop = 19;
+constexpr int ImageWidth = 240;
+constexpr int ImageHeight = 103;
 std::unique_ptr<uint8_t[]> frame;
 size_t frameSize = 0;
 File stream;
@@ -18,6 +21,16 @@ char path[FilePath::MaxPath+1] = {}, name[144] = "No video";
 String directPath;
 const char* message = "Stopped";
 void mark(const char* text) { message = text; changed = true; }
+bool drawJpeg(const uint8_t* data, size_t size) {
+    return Ui::canvas().drawJpg(data, size, 0, ImageTop, ImageWidth, ImageHeight,
+                                0, 0, 1.0f, 0.0f, datum_t::middle_center);
+}
+bool drawJpegFile(const char* file) {
+    File image = SD.open(file, FILE_READ);
+    if (!image || image.isDirectory()) return false;
+    return Ui::canvas().drawJpg(&image, 0, ImageTop, ImageWidth, ImageHeight,
+                                0, 0, 1.0f, 0.0f, datum_t::middle_center);
+}
 int readByte() {
     if (chunkPos == chunkSize) { chunkSize = stream.read(chunk, sizeof(chunk)); chunkPos = 0; }
     return chunkSize ? chunk[chunkPos++] : -1;
@@ -93,11 +106,12 @@ const char* status() { return message; }
 void render() {
     if (!Storage::appAccessAllowed()) { Ui::line(54, "USB computer is using SD", TFT_YELLOW); return; }
     if (!validFrame) { Ui::line(54, message, TFT_YELLOW); return; }
-    if (mjpeg) Ui::canvas().drawJpg(frame.get(), frameSize, 0, 22, 240, 96);
-    else {
-        File image = SD.open(path, FILE_READ);
-        if (image) Ui::canvas().drawJpg(&image, 0, 22, 240, 96);
-        else { validFrame = false; playing = false; mark("Cannot read image"); Ui::line(54, message, TFT_YELLOW); }
+    const bool decoded = mjpeg ? drawJpeg(frame.get(), frameSize) : drawJpegFile(path);
+    if (!decoded) {
+        validFrame = false;
+        playing = false;
+        mark("JPEG decode failed; use baseline JPEG");
+        Ui::line(54, message, TFT_YELLOW);
     }
 }
 }

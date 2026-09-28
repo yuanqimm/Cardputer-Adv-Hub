@@ -63,7 +63,7 @@ USB SD 共享每次开机默认关闭。进入 **Settings → USB SD sharing**�
 
 ### 视频格式与转换
 
-支持查看 JPEG 图片和播放无音轨的原始 MJPEG。MP4/H.264、普通 AVI、GIF **不能直接播放**。在电脑安装 ffmpeg 后转换：
+支持查看基线 JPEG 图片和播放无音轨的原始 MJPEG。画面会保持比例缩放到视频区域并居中；JPEG 解码失败时页面会显示错误。Progressive JPEG、MP4/H.264、普通 AVI、GIF **不能直接播放**，请先转换为基线 JPEG/MJPEG。在电脑安装 ffmpeg 后转换：
 
 ```powershell
 python tools/convert_video.py input.mp4 output.mjpeg --fps 12
