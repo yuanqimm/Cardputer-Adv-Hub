@@ -20,7 +20,7 @@ platformio device monitor --port COM17 --baud 115200
 | 启动器 | W/S、K/J 或 Fn 方向键选择，Enter 进入 |
 | 全部页面 | **Fn+Q 返回首页**；文本未保存时先确认；离开 SSH 会断开 SSH 会话但保留 Wi-Fi，离开媒体会停止播放；顶部三格图标表示 Wi-Fi 已连接，叉号表示未连接 |
 | Keyboard | Fn+M 切换 USB / Bluetooth / 双发，Fn+D 查看诊断，Fn+R 清除全部 BLE 配对 |
-| SSH | C 扫描附近 Wi-Fi，W/S 或 Fn 方向键选择，Enter 连接；陌生加密网络会进入密码输入框；Wi-Fi 成功后依次输入 SSH 主机/IP、用户名、密码；I 重新打开 SSH 登录输入；H 打开已成功连接的历史配置；D 直接使用 SD 配置；E 重新输入当前 Wi-Fi 密码；首次遇到主机时校验指纹后按 T 信任并保存 |
+| SSH | C 扫描附近 Wi-Fi，W/S 或 Fn 方向键选择，Enter 连接；陌生加密网络会进入密码输入框；Wi-Fi 成功后停留在网络信息页，显示 SSID、IP、网关、子网掩码、DNS 和信号强度；按 I 才进入 SSH 主机/IP、用户名、密码输入；H 打开已保存配置；D 使用 SD 配置；E 重新输入当前 Wi-Fi 密码；首次遇到主机时校验指纹后按 T 信任并保存 |
 | SD Storage | W/S、K/J 或 Fn 方向键选择，Enter 打开，Backspace/Esc 返回上级，M 操作菜单，R 刷新；根目录 Backspace 返回首页 |
 | 文件操作 | M 菜单选择新建文件夹/文本、重命名、复制、剪切、粘贴、删除或属性；Ctrl+C/Ctrl+X 复制/剪切，进入目标文件夹后 V 粘贴；删除需 Y 确认 |
 | 文本 | Enter 查看，E 编辑，Fn 方向键移动光标，Ctrl+S 保存；Esc 退出编辑，修改未保存时 Y 放弃/N 继续 |
@@ -87,7 +87,7 @@ python tools/convert_video.py input.mp4 output.mjpeg --fps 12
 
 进入 SSH 页面后按 C 会异步扫描附近 Wi-Fi，列表显示 SSID、信号强度和加密标记；扫描不会阻塞界面。选择网络后按 Enter 连接。开放网络可以直接使用，历史中已有密码的网络会自动取用；陌生的加密网络会在屏幕上输入密码，按 Enter 开始连接，Backspace 删除，Fn+Q 取消。密码输入符合 WPA-PSK 的 8–63 个字符或 64 位十六进制格式。
 
-Wi-Fi 连接成功后，如果没有可用的 SSH 历史或 SD 配置，设备会自动进入 SSH 登录输入：先输入主机名/IP，Enter 后输入用户名，再输入 SSH 密码，最后按 Enter 开始非阻塞握手。主机端口默认 22；需要修改时仍可使用 `ssh.json` 的 `port` 字段。认证成功后才保存这条完整配置。
+Wi-Fi 连接成功后会停在网络信息页，显示 SSID、IP 地址、网关、子网掩码、DNS 和 RSSI。按 **I** 才进入 SSH 登录输入：先输入主机名/IP，Enter 后输入用户名，再输入 SSH 密码，最后按 Enter 开始非阻塞握手。重启后 Wi-Fi 自动恢复也只显示网络信息，不会自动打开上次 SSH 终端。主机端口默认 22；需要修改时仍可使用 `ssh.json` 的 `port` 字段。认证成功后才保存这条完整配置。
 
 连接分阶段执行：Wi-Fi、握手、主机指纹、认证、PTY、shell。网络等待有超时，可用 Fn+Q 取消。首次连接显示服务器 SHA-256 公钥指纹（64 个十六进制字符），请与服务器端实际公钥核对后按 T；信任记录保存至 NVS。SSH 认证成功后，Wi-Fi SSID/密码、主机、端口、用户名、SSH 密码和指纹会保存为最多 6 条历史配置。按 H 打开历史列表，选择后按 Enter 可一键重连；已保存的主机指纹不匹配时停止认证，不发送密码。
 

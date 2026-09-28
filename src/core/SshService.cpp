@@ -254,7 +254,12 @@ void beginWifiConnection(const char* text) {
 }
 }
 namespace SshService {
-void begin() { libssh_begin(); loadSaved(); loadWifiMemory(); WiFi.persistent(false); WiFi.setAutoReconnect(true); lastWifiConnected = WiFi.status() == WL_CONNECTED; }
+void begin() {
+    release();
+    state = State::Idle; browser = Browser::None; active = Profile(); expected = "";
+    sshConfigured = false; activeSecured = false;
+    libssh_begin(); loadSaved(); loadWifiMemory(); WiFi.persistent(false); WiFi.setAutoReconnect(true); lastWifiConnected = WiFi.status() == WL_CONNECTED;
+}
 void scanWifi() {
     if (!canStart()) return;
     release(); browser = Browser::Wifi; networkCount = networkSelected = 0; WiFi.mode(WIFI_STA); WiFi.scanDelete();
@@ -439,9 +444,13 @@ void loop() {
     if (state == State::Wifi) {
         if (WiFi.status() == WL_NO_SSID_AVAIL || WiFi.status() == WL_CONNECT_FAILED) { fail("Wi-Fi failed; E edit password"); return; }
         if (WiFi.status()!=WL_CONNECTED) return;
-        const bool remembered = rememberWifi();
-        if (!sshConfigured) { openSshEditor(); return; }
-        beginSsh(); return;
+        rememberWifi();
+        // A Wi-Fi connection is deliberately a separate stage from SSH. This
+        // also prevents an AP reconnect after reboot from reopening the last
+        // SSH terminal without an explicit user action.
+        state = State::WifiReady;
+        mark("Wi-Fi connected; I SSH login");
+        return;
     }
     if (WiFi.status()!=WL_CONNECTED) { fail("Wi-Fi disconnected"); return; }
     int rc=SSH_OK;
@@ -472,6 +481,13 @@ void sendInput(const InputEvent& event) {
 }
 bool dirty() { const bool result=changed; changed=false; return result; }
 bool connected() { return state==State::Ready; }
+bool wifiReady() { return WiFi.status() == WL_CONNECTED && browser == Browser::None && (state == State::Idle || state == State::WifiReady || state == State::Error); }
+const char* wifiSsid() { static String value; value = WiFi.SSID(); if (!value.length()) value = active.ssid; return value.c_str(); }
+const char* wifiIp() { static String value; value = WiFi.localIP().toString(); return value.c_str(); }
+const char* wifiGateway() { static String value; value = WiFi.gatewayIP().toString(); return value.c_str(); }
+const char* wifiSubnet() { static String value; value = WiFi.subnetMask().toString(); return value.c_str(); }
+const char* wifiDns() { static String value; value = WiFi.dnsIP().toString(); return value.c_str(); }
+int32_t wifiSignal() { return WiFi.status() == WL_CONNECTED ? WiFi.RSSI() : 0; }
 const char* status() { return message.c_str(); }
 const char* terminalRow(uint8_t row) { return terminalBuffer.row(row); }
 uint8_t view() { return static_cast<uint8_t>(browser); }

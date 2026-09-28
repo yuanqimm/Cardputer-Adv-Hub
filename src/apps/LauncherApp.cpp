@@ -124,6 +124,15 @@ private:
         Ui::header("SSH Terminal");
         if(SshService::connected()) {
             for(uint8_t row=0;row<12;++row) Ui::line(22+row*8,SshService::terminalRow(row));
+        } else if(SshService::wifiReady()) {
+            char row[44];
+            Ui::line(28,"Wi-Fi connected",TFT_GREEN);
+            snprintf(row,sizeof(row),"SSID: %.25s",SshService::wifiSsid()); Ui::line(42,row);
+            snprintf(row,sizeof(row),"IP: %.15s",SshService::wifiIp()); Ui::line(56,row);
+            snprintf(row,sizeof(row),"GW: %.15s",SshService::wifiGateway()); Ui::line(70,row);
+            snprintf(row,sizeof(row),"Mask: %.15s",SshService::wifiSubnet()); Ui::line(84,row);
+            snprintf(row,sizeof(row),"DNS: %.15s  RSSI:%ld",SshService::wifiDns(),static_cast<long>(SshService::wifiSignal())); Ui::line(98,row);
+            Ui::line(112,"I: SSH login",TFT_YELLOW);
         } else {
             if(SshService::awaitingTrust()) {
                 Ui::line(30,SshService::status(),TFT_CYAN);

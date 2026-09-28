@@ -26,7 +26,7 @@
 |---|---|---|
 | 页面、快捷键 | src/apps/LauncherApp.cpp | 主页五项；USB SD 位于 Settings 第四项，独立页面 screen 6 |
 | 键盘 | KeyboardManager / UsbKeyboardService / BleKeyboardService | 用户曾确认 USB、Win11 BLE 和小米 14 N2 成功；完整键位回归清单保留 |
-| Wi-Fi / SSH | src/core/SshService.cpp | 扫描、密码输入、NVS 记忆、SSH 登录、主机指纹和交互终端已实现；完整真实服务器验收见验证文档 |
+| Wi-Fi / SSH | src/core/SshService.cpp | 扫描、密码输入、NVS 记忆、Wi-Fi 信息页、手动 SSH 登录、主机指纹和交互终端已实现；完整真实服务器验收见验证文档 |
 | 红外 | src/core/IrRemote.cpp | GPIO44 发射，多设备 JSON；真实协议/地址/命令需设备验收；学习需外接接收器 |
 | SD Storage | src/apps/SdStorage.cpp、src/core/FileManager.cpp | 多级目录、文件读写/复制/移动/删除/属性、4 KiB 文本编辑；64 项分页；新功能待实机验收 |
 | 音视频 | src/media | 从任意文件夹打开 MP3/WAV、JPEG/原始 MJPEG；不直接支持 MP4/H.264，播放器完整实测尚待记录 |
@@ -56,6 +56,7 @@
 - BLE 设备名 `Cardputer Hub N2`，NVS 固定静态随机地址、配对参数不随意改动或清空。Fn+R 是用户主动清配对操作。
 - 仅 Keyboard 页面向 USB/BLE 主机发送输入；进入等待松键、退出释放，Opt 对应 Win/Command。
 - 离开 SSH 断开 SSH 会话但保留 Wi-Fi；主页状态栏继续显示 Wi-Fi 状态。
+- Wi-Fi 连接成功后停在信息页，显示 SSID、IP、网关、子网掩码、DNS 和 RSSI；必须按 I 才开始 SSH 登录。启动时清理 SSH 状态，Wi-Fi 自动重连不会恢复上次终端。
 - SSH 内存有限：主循环栈 51200 字节，握手前暂时释放 BLE，结束后恢复。不要仅降低内存阈值掩盖分配失败。
 - 保持帧缓冲防闪烁策略，不因普通按键无条件刷新屏幕。
 

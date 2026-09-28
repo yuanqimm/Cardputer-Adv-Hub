@@ -5,6 +5,7 @@ void begin(); void loop(); void connect(); void disconnect(); void cancel(); voi
 bool enteringPassword(); void editPassword(const InputEvent& event); void changeWifiPassword(); const char* passwordDisplay(); const char* passwordSsid();
 bool editingSsh(); void beginSshSetup(); void editSsh(const InputEvent& event); const char* sshFieldName(); const char* sshEditDisplay();
 bool dirty(); bool connected(); const char* status(); const char* terminalRow(uint8_t row); bool awaitingTrust(); const char* fingerprint(); void trustServer();
+bool wifiReady(); const char* wifiSsid(); const char* wifiIp(); const char* wifiGateway(); const char* wifiSubnet(); const char* wifiDns(); int32_t wifiSignal();
 uint8_t view(); uint8_t wifiCount(); uint8_t wifiSelected(); const char* wifiName(uint8_t index); int32_t wifiRssi(uint8_t index); bool wifiSecured(uint8_t index);
 uint8_t savedCount(); uint8_t savedSelected(); const char* savedSsid(uint8_t index); const char* savedTarget(uint8_t index);
 }
