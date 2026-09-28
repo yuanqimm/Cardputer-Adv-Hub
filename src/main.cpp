@@ -1,5 +1,6 @@
 #include <M5Cardputer.h>
 #include "app/App.h"
+#include "app/Recorder.h"
 #include "core/InputManager.h"
 #include "core/Ui.h"
 #include "core/Storage.h"
@@ -54,10 +55,11 @@ void loop() {
     const bool mediaDirty = MediaPlayer::dirty();
     const bool storageDirty = UsbStorageService::dirty();
     const bool fileDirty = FileManager::dirty();
+    const bool recorderDirty = Recorder::dirty();
     if (event.type != InputType::None) {
         currentApp->onInput(event);
         currentApp->draw();
-    } else if (sshDirty || videoDirty || bleDirty || mediaDirty || storageDirty || fileDirty) {
+    } else if (sshDirty || videoDirty || bleDirty || mediaDirty || storageDirty || fileDirty || recorderDirty) {
         currentApp->draw();
     }
     KeyboardManager::update();

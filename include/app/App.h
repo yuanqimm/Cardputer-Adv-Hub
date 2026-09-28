@@ -10,6 +10,7 @@ enum class AppId : uint8_t {
     Infrared,
     SdStorage,
     Settings,
+    Recorder,
 };
 
 class App {

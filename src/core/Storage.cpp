@@ -12,7 +12,7 @@ bool begin() {
     initialized = SD.begin(12, SPI, 25000000);
     appAccess = true;
     if (available()) {
-        SD.mkdir("/music"); SD.mkdir("/video"); SD.mkdir("/config");
+        SD.mkdir("/music"); SD.mkdir("/video"); SD.mkdir("/config"); SD.mkdir("/recordings");
     }
     return available();
 }

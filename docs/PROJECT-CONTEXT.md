@@ -8,7 +8,7 @@
 - 功能目标：便携 SSH、USB/BLE 双模键盘、红外遥控、SD 音乐/视频、简洁独立页面；保留后续扩展能力。
 - 优先整合已有方案，保留第三方许可证；缺少的部分自行实现。
 - 当前仍为 PlatformIO + Arduino + VS Code。后续路线是 ESP-IDF + Arduino Component，不是已经完成迁移。
-- USB SD 手动共享已获用户确认。最新需求：Media Player 更名 SD Storage，改为类似电脑的文件夹浏览及 SD 读写操作，同时支持音频/视频，并参考已有项目。
+- USB SD 手动共享已获用户确认。最新需求：Media Player 更名 SD Storage，改为类似电脑的文件夹浏览及 SD 读写操作，同时支持音频/视频，并参考已有项目；当前新增主页 Recorder 页面，录音写入 SD 并提供暂停/试听。
 
 ## 工程和工具
 
@@ -24,13 +24,14 @@
 
 | 功能 | 入口 | 状态 |
 |---|---|---|
-| 页面、快捷键 | src/apps/LauncherApp.cpp | 主页五项；USB SD 位于 Settings 第四项，独立页面 screen 6 |
+| 页面、快捷键 | src/apps/LauncherApp.cpp、src/apps/Recorder.cpp | 主页六项；Recorder 为 screen 7，USB SD 位于 Settings 第四项，独立页面 screen 6 |
 | 键盘 | KeyboardManager / UsbKeyboardService / BleKeyboardService | 用户曾确认 USB、Win11 BLE 和小米 14 N2 成功；完整键位回归清单保留 |
 | Wi-Fi / SSH | src/core/SshService.cpp | 扫描、密码输入、NVS 记忆、Wi-Fi 信息页、手动 SSH 登录、主机指纹和交互终端已实现；完整真实服务器验收见验证文档 |
 | 红外 | src/core/IrRemote.cpp | GPIO44 发射，多设备 JSON；真实协议/地址/命令需设备验收；学习需外接接收器 |
 | SD Storage | src/apps/SdStorage.cpp、src/core/FileManager.cpp | 多级目录、文件读写/复制/移动/删除/属性、4 KiB 文本编辑；64 项分页；新功能待实机验收 |
 | 音视频 | src/media | 从任意文件夹打开 MP3/WAV、JPEG/PNG/BMP/原始 MJPEG；不直接支持 MP4/H.264，播放器完整实测尚待记录 |
 | USB SD | src/core/UsbStorageService.cpp | 2026-09-26 用户确认手动共享功能完成 |
+| Recorder | src/apps/Recorder.cpp | 16 kHz WAV 流式录音、频谱、暂停/试听/保存；待开发板验收 |
 | 显示 | src/core/Ui.cpp | 240×135、8 位帧缓冲和内容哈希抑制重复刷屏；用户确认闪烁已解决 |
 
 ## USB SD 已接受的行为

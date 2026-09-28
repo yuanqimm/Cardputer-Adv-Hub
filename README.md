@@ -22,6 +22,7 @@ platformio device monitor --port COM17 --baud 115200
 | Keyboard | Fn+M 切换 USB / Bluetooth / 双发，Fn+D 查看诊断，Fn+R 清除全部 BLE 配对 |
 | SSH | C 扫描附近 Wi-Fi，W/S 或 Fn 方向键选择，Enter 连接；陌生加密网络会进入密码输入框；Wi-Fi 成功后停留在网络信息页，显示 SSID、IP、网关、子网掩码、DNS 和信号强度；按 I 才进入 SSH 主机/IP、用户名、密码输入；H 打开已保存配置；D 使用 SD 配置；E 重新输入当前 Wi-Fi 密码；首次遇到主机时校验指纹后按 T 信任并保存 |
 | SD Storage | W/S、K/J 或 Fn 方向键选择，Enter 打开，Backspace/Esc 返回上级，M 操作菜单，R 刷新；根目录 Backspace 返回首页 |
+| Recorder | 主页进入录音页；Enter 开始/继续，P 或空格暂停，V 试听，S 保存 WAV；显示录音时间和实时频谱，文件保存到 `/recordings/recNNN.wav` |
 | 文件操作 | M 菜单选择新建文件夹/文本、重命名、复制、剪切、粘贴、删除或属性；Ctrl+C/Ctrl+X 复制/剪切，进入目标文件夹后 V 粘贴；删除需 Y 确认 |
 | 文本 | Enter 查看，E 编辑，Fn 方向键移动光标，Ctrl+S 保存；Esc 退出编辑，修改未保存时 Y 放弃/N 继续 |
 | 音频/视频 | 从文件列表 Enter 打开；P/空格暂停或继续，音频 +/- 音量；Backspace 返回文件列表，播放到尾停止 |
@@ -52,6 +53,8 @@ platformio device monitor --port COM17 --baud 115200
 支持新建文件夹和文本、重命名、复制文件、移动文件或文件夹、查看属性，以及删除文件或**空文件夹**；不递归删除或复制文件夹，不覆盖同名目标。复制以分段方式进行，显示进度，可按 Backspace/Esc 取消；退出页面也会取消未完成复制。文本支持 TXT/JSON/INI/CFG/CSV/MD/LOG，最大 4 KiB；支持输入 ASCII、换行、光标编辑，非 ASCII 显示为 `?`，未编辑的 UTF-8 原始字节保留，支持 CRLF。保存先写临时文件，再备份和替换原文件，失败时尝试恢复；这不等于 FAT 断电事务保证。
 
 音频支持 MP3/WAV，显示文件名、播放状态、已输出采样的时长、音量和**文件读取进度**；读取百分比不等于精确的音频时间百分比。P 暂停后可继续同一曲目，播放到尾停止，返回列表选择其他文件。打开播放器前释放目录列表并关闭前一个播放器，以给没有 PSRAM 的设备保留内存。其他格式可以复制/移动/删除，但不提供解码预览。
+
+录音页面使用 Cardputer 内置麦克风，以 16 kHz、16-bit、单声道 PCM 流式写入 SD 卡。录音中的临时文件使用 `.tmp` 后缀，保存完成后才改名为 `.wav`；录音中按 P 暂停、V 试听，试听结束后可按 Enter 继续录音。录音和扬声器试听不能同时运行，页面会自动切换麦克风/扬声器资源。USB SD sharing 开启时录音会被拒绝，避免与电脑同时写入 FAT。
 
 文件管理流程参考 Bruce 文件浏览器，SD 接口参考 M5Stack 官方示例，参考范围及许可证见 [SD Storage 参考与设计](docs/sd-storage-reference.md)。
 

@@ -1,5 +1,6 @@
 #include "app/App.h"
 #include "app/SdStorage.h"
+#include "app/Recorder.h"
 #include "core/Ui.h"
 #include "core/Storage.h"
 #include "core/AppSettings.h"
@@ -20,12 +21,19 @@ public:
     void update() override {
         if (!UsbStorageService::hostActive()) confirmUsbStop_=false;
         if (screen_==4) SdStorage::update();
+        if (screen_==7) Recorder::update();
     }
     void onInput(const InputEvent& e) override {
         if(e.type!=InputType::Key) return;
         // The file editor owns printable keys and confirms unsaved text on exit.
         if(screen_==4) { if(SdStorage::onInput(e)) home(); return; }
         const char key=static_cast<char>(tolower(static_cast<unsigned char>(e.key)));
+        if(screen_==7) {
+            const bool leave = (e.fn && key=='q') || key=='\b' || key==27;
+            Recorder::onInput(e);
+            if (leave) home();
+            return;
+        }
         if(e.fn && key=='q') { if(!e.repeat) home(); return; }
         if(screen_==2) {
             if(e.fn && !e.repeat) {
@@ -40,9 +48,9 @@ public:
         if(screen_==1 && SshService::enteringPassword()) { SshService::editPassword(e); return; }
         if(screen_==1 && SshService::editingSsh()) { SshService::editSsh(e); return; }
         if(screen_==0) {
-            if(up(e,key)) selected_=(selected_+4)%5;
-            else if(down(e,key)) selected_=(selected_+1)%5;
-            else if(e.key=='\n' && !e.repeat) enter(selected_+1);
+            if(up(e,key)) selected_=(selected_+5)%6;
+            else if(down(e,key)) selected_=(selected_+1)%6;
+            else if(e.key=='\n' && !e.repeat) { const uint8_t pages[] = {1,2,3,4,5,7}; enter(pages[selected_]); }
             return;
         }
         if((key=='q' || e.key=='\b') && !e.repeat) { home(); return; }
@@ -90,6 +98,7 @@ public:
         case 4: SdStorage::draw(); break;
         case 5: drawSettings(); break;
         case 6: drawUsbStorage(); break;
+        case 7: Recorder::draw(); break;
         }
         Ui::present();
     }
@@ -102,12 +111,14 @@ private:
     void home() {
         if(screen_==1) SshService::disconnect();
         if(screen_==4) SdStorage::end();
+        if(screen_==7) Recorder::end();
         KeyboardManager::setActive(false); screen_=0;
     }
     void enter(uint8_t page) {
         screen_=page;
         KeyboardManager::setActive(page==2);
         if(page==4) SdStorage::begin();
+        if(page==7) Recorder::begin();
     }
     void adjust(int direction) {
         if(setting_==0) AppSettings::setBrightness(AppSettings::brightness()+direction*16);
@@ -116,8 +127,14 @@ private:
     }
     void drawHome() {
         Ui::header("Cardputer Adv Hub");
-        const char* names[]={"SSH Terminal","Keyboard","IR Remote","SD Storage","Settings"};
-        for(int i=0;i<5;++i) Ui::item(i,names[i],i==selected_);
+        const char* names[]={"SSH Terminal","Keyboard","IR Remote","SD Storage","Settings","Recorder"};
+        for(int i=0;i<6;++i) {
+            const int y = 23 + i * 16;
+            const uint16_t bg = i==selected_ ? TFT_BLUE : TFT_BLACK;
+            Ui::canvas().fillRect(4, y - 1, 232, 14, bg);
+            Ui::canvas().setTextColor(TFT_WHITE, bg);
+            Ui::canvas().drawString(names[i], 10, y + 1);
+        }
         Ui::footer("W/S: select   Enter: open");
     }
     void drawSsh() {
