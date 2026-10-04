@@ -131,7 +131,7 @@ void showText() {
         const unsigned char c = i == text.length() ? ' ' : static_cast<unsigned char>(text[i]);
         if (visible && (caret || (c != '\n' && c != '\r'))) {
             const int x = 6+col*6, y = 36+(line-textScroll)*8;
-            canvas.setTextColor(caret ? TFT_BLACK : TFT_WHITE, caret ? TFT_CYAN : TFT_BLACK);
+            canvas.setTextColor(caret ? Ui::background() : Ui::text(), caret ? Ui::info() : Ui::background());
             char glyph[2] = {static_cast<char>(c >= 32 && c <= 126 ? c : (c == '\t' || c == '\n' || c == '\r' ? ' ' : '?')), 0};
             canvas.drawString(glyph, x, y);
         }
@@ -169,14 +169,15 @@ void edit(const InputEvent& e, char key) {
 void browserRows() {
     const auto& entries = FileManager::entries();
     const size_t count = entries.size()+(FileManager::more()?1:0);
-    if (!count) { Ui::line(55,"Empty folder",TFT_LIGHTGREY); Ui::line(75,"M: menu / create files"); return; }
+    if (!count) { Ui::line(55,"Empty folder",Ui::muted()); Ui::line(75,"M: menu / create files"); return; }
     const size_t top = selected / Rows * Rows;
     for (size_t row=0; row<Rows && top+row<count; ++row) {
         const size_t index = top+row;
         const int y = 36+row*12;
-        const uint16_t bg = selected == index ? TFT_BLUE : TFT_BLACK;
-        Ui::canvas().fillRect(4,y-1,232,12,bg);
-        Ui::canvas().setTextColor(TFT_WHITE,bg);
+        const uint16_t bg = selected == index ? Ui::selected() : Ui::surface();
+        Ui::canvas().fillRoundRect(4,y-1,232,12,2,bg);
+        if (selected == index) Ui::canvas().drawRoundRect(4,y-1,232,12,2,Ui::accent());
+        Ui::canvas().setTextColor(Ui::text(),bg);
         char label[40];
         if (index == entries.size()) snprintf(label,sizeof(label),"[More files...]");
         else snprintf(label,sizeof(label),"%s %.30s",entries[index].directory?"[DIR]":"     ",entries[index].name.c_str());
@@ -274,57 +275,58 @@ bool onInput(const InputEvent& e) {
 void draw() {
     Ui::header("SD Storage");
     if (!accessible()) {
-        Ui::line(40,Storage::available()?"SD shared with computer":"No SD card",TFT_YELLOW);
+        Ui::line(40,Storage::available()?"SD shared with computer":"No SD card",Ui::warning());
         Ui::line(62,Storage::available()?"Safely eject on PC first":"Insert FAT32 SD and reboot");
         Ui::footer("Fn+Q: home"); return;
     }
     char row[48];
     if (view == View::Browser) {
         const String breadcrumb = directory.length() > 38 ? "..."+directory.substring(directory.length()-35) : directory;
-        Ui::line(22,breadcrumb.c_str(),TFT_CYAN); browserRows();
+        Ui::line(22,breadcrumb.c_str(),Ui::info()); Ui::divider(33); browserRows();
         snprintf(row,sizeof(row),"%u/%u%s  %s",static_cast<unsigned>(FileManager::entries().empty()?0:selected+1),static_cast<unsigned>(FileManager::entries().size()),FileManager::more()?"+":"",clipboard.isEmpty()?"":(cut?"[Cut]":"[Copy]"));
-        Ui::line(111,notice.length()?notice.c_str():row,TFT_LIGHTGREY);
+        Ui::line(111,notice.length()?notice.c_str():row,Ui::muted());
         Ui::footer("Enter:open M:menu BS:up R:refresh");
     } else if (view == View::Menu) {
         const size_t top = menuItem/Rows*Rows;
         for (size_t i=top; i<std::min(top+Rows,ActionCount); ++i) {
             const int y = 28+(i-top)*14;
-            const uint16_t bg = i == menuItem ? TFT_BLUE : TFT_BLACK;
-            Ui::canvas().fillRect(4,y-1,232,14,bg);
-            Ui::canvas().setTextColor(TFT_WHITE,bg); Ui::canvas().drawString(actions[i],8,y);
+            const uint16_t bg = i == menuItem ? Ui::selected() : Ui::surface();
+            Ui::canvas().fillRoundRect(4,y-1,232,14,3,bg);
+            if (i == menuItem) Ui::canvas().drawRoundRect(4,y-1,232,14,3,Ui::accent());
+            Ui::canvas().setTextColor(Ui::text(),bg); Ui::canvas().drawString(actions[i],8,y);
         }
-        Ui::line(112,notice.c_str(),TFT_YELLOW); Ui::footer("W/S:select Enter:apply BS:back");
+        Ui::line(112,notice.c_str(),Ui::warning()); Ui::footer("W/S:select Enter:apply BS:back");
     } else if (view == View::Name) {
-        Ui::line(28,nameAction==NameAction::Folder?"New folder name:":nameAction==NameAction::Text?"New text file (e.g. notes.txt):":"Rename to:",TFT_CYAN);
+        Ui::line(28,nameAction==NameAction::Folder?"New folder name:":nameAction==NameAction::Text?"New text file (e.g. notes.txt):":"Rename to:",Ui::info());
         for (unsigned i=0;i<4;++i) Ui::line(48+i*12,input.substring(i*38,(i+1)*38).c_str());
-        Ui::line(108,notice.c_str(),TFT_YELLOW); Ui::footer("Enter:save Esc:cancel BS:edit");
+        Ui::line(108,notice.c_str(),Ui::warning()); Ui::footer("Enter:save Esc:cancel BS:edit");
     } else if (view == View::Delete || view == View::Discard) {
-        Ui::line(32,view==View::Delete?"Delete selected item?":"Discard unsaved text?",TFT_YELLOW);
+        Ui::line(32,view==View::Delete?"Delete selected item?":"Discard unsaved text?",Ui::warning());
         Ui::line(54,selectedName.substring(0,38).c_str());
         Ui::line(80,view==View::Delete?"Folders must be empty":"Ctrl+S in editor saves changes");
         Ui::footer("Y:confirm N:cancel");
     } else if (view == View::Info) {
         for (unsigned i=0;i<4;++i) Ui::line(28+i*12,selectedPath.substring(i*38,(i+1)*38).c_str());
         snprintf(row,sizeof(row),"%s  %lu bytes",selectedDirectory?"Folder":"File",static_cast<unsigned long>(selectedSize));
-        Ui::line(84,row,TFT_CYAN); Ui::line(108,notice.c_str(),TFT_YELLOW); Ui::footer("Enter / BS: back");
+        Ui::line(84,row,Ui::info()); Ui::line(108,notice.c_str(),Ui::warning()); Ui::footer("Enter / BS: back");
     } else if (view == View::Text || view == View::Edit) {
-        snprintf(row,sizeof(row),"%s%.32s",modified?"* ":"",selectedName.c_str()); Ui::line(22,row,TFT_CYAN);
-        showText(); Ui::line(111,notice.c_str(),TFT_YELLOW);
+        snprintf(row,sizeof(row),"%s%.32s",modified?"* ":"",selectedName.c_str()); Ui::line(22,row,Ui::info());
+        showText(); Ui::line(111,notice.c_str(),Ui::warning());
         Ui::footer(view==View::Edit?"Ctrl+S:save Esc:back Arrows:cursor":"W/S:scroll E:edit BS:back");
     } else if (view == View::Audio) {
-        Ui::line(30,selectedName.substring(0,38).c_str(),TFT_CYAN);
-        Ui::line(52,MediaPlayer::status(),TFT_GREEN);
+        Ui::line(30,selectedName.substring(0,38).c_str(),Ui::info());
+        Ui::line(52,MediaPlayer::status(),Ui::success());
         const uint32_t seconds = MediaPlayer::elapsedSeconds();
         snprintf(row,sizeof(row),"%lu:%02lu  Vol:%u%%",static_cast<unsigned long>(seconds/60),static_cast<unsigned long>(seconds%60),MediaPlayer::volume()); Ui::line(75,row);
         snprintf(row,sizeof(row),"File read: %u%%",MediaPlayer::progress()); Ui::line(92,row);
-        Ui::canvas().drawRect(8,108,224,5,TFT_DARKGREY); Ui::canvas().fillRect(9,109,222*MediaPlayer::progress()/100,3,TFT_CYAN);
+        Ui::canvas().drawRoundRect(8,108,224,5,2,Ui::surfaceAlt()); Ui::canvas().fillRoundRect(9,109,222*MediaPlayer::progress()/100,3,1,Ui::accent());
         Ui::footer("P:pause/play +/-:volume BS:back");
     } else if (view == View::Video) {
         VideoPlayer::render();
-        if (!VideoPlayer::isPlaying()) Ui::line(110,VideoPlayer::status(),TFT_CYAN);
+        if (!VideoPlayer::isPlaying()) Ui::line(110,VideoPlayer::status(),Ui::info());
         Ui::footer("P:pause/play BS:files Fn+Q:home");
     } else if (view == View::Copy) {
-        Ui::line(36,"Copying file...",TFT_CYAN);
+        Ui::line(36,"Copying file...",Ui::info());
         snprintf(row,sizeof(row),"%u%%",FileManager::progress()); Ui::line(60,row);
         Ui::line(84,"Keep SD inserted until finished"); Ui::footer("BS / Esc: cancel copy");
     }

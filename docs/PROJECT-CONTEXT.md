@@ -32,7 +32,7 @@
 | 音视频 | src/media | 从任意文件夹打开 MP3/WAV、JPEG/PNG/BMP/原始 MJPEG；不直接支持 MP4/H.264，播放器完整实测尚待记录 |
 | USB SD | src/core/UsbStorageService.cpp | 2026-09-26 用户确认手动共享功能完成 |
 | Recorder | src/apps/Recorder.cpp | 16 kHz WAV 流式录音、频谱、暂停/试听/保存；待开发板验收 |
-| 显示 | src/core/Ui.cpp | 240×135、8 位帧缓冲和内容哈希抑制重复刷屏；用户确认闪烁已解决 |
+| 显示 | src/core/Ui.cpp | 240×135、8 位帧缓冲和内容哈希抑制重复刷屏；深炭灰/橙色/青蓝主题，用户确认闪烁已解决 |
 
 ## USB SD 已接受的行为
 

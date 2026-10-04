@@ -264,16 +264,17 @@ void draw() {
     const uint32_t seconds = elapsedMs() / 1000;
     char row[40];
     snprintf(row, sizeof(row), "Time %02lu:%02lu", static_cast<unsigned long>(seconds / 60), static_cast<unsigned long>(seconds % 60));
-    Ui::line(24, row, TFT_CYAN);
+    Ui::line(24, row, Ui::info());
     const char* stateName = state == State::Recording ? "Recording" : state == State::Paused ? "Paused" : state == State::Playing ? "Playing" : state == State::Saved ? "Saved" : state == State::Error ? "Error" : "Ready";
-    Ui::line(40, stateName, state == State::Error ? TFT_RED : state == State::Recording ? TFT_RED : TFT_GREEN);
-    Ui::canvas().drawRect(7, 56, 226, 50, TFT_DARKGREY);
+    Ui::line(40, stateName, state == State::Error ? Ui::danger() : state == State::Recording ? Ui::danger() : Ui::success());
+    Ui::panel(7, 56, 226, 50, Ui::surface());
+    Ui::canvas().drawRoundRect(7, 56, 226, 50, 4, Ui::surfaceAlt());
     for (size_t i = 0; i < SpectrumBars; ++i) {
         const int height = spectrum[i];
-        Ui::canvas().fillRect(10 + static_cast<int>(i) * 9, 103 - height, 6, height, state == State::Playing ? TFT_CYAN : TFT_GREEN);
+        Ui::canvas().fillRoundRect(10 + static_cast<int>(i) * 9, 103 - height, 6, height, 2, state == State::Playing ? Ui::info() : Ui::accent());
     }
-    Ui::line(109, message, TFT_YELLOW);
-    if (savedPath[0]) { const char* name = strrchr(savedPath, '/'); snprintf(row, sizeof(row), "File: %.28s", name ? name + 1 : savedPath); Ui::line(119, row, TFT_WHITE); }
+    Ui::line(109, message, Ui::warning());
+    if (savedPath[0]) { const char* name = strrchr(savedPath, '/'); snprintf(row, sizeof(row), "File: %.28s", name ? name + 1 : savedPath); Ui::line(119, row, Ui::text()); }
     Ui::footer("Enter:rec/resume  P:pause  V:listen  S:save");
 }
 

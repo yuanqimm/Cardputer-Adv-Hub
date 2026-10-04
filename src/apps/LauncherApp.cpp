@@ -127,13 +127,22 @@ private:
     }
     void drawHome() {
         Ui::header("Cardputer Adv Hub");
+        Ui::line(21, "QUICK ACCESS", Ui::muted());
         const char* names[]={"SSH Terminal","Keyboard","IR Remote","SD Storage","Settings","Recorder"};
+        const char* marks[]={">_", "KB", "IR", "SD", "CFG", "REC"};
         for(int i=0;i<6;++i) {
-            const int y = 23 + i * 16;
-            const uint16_t bg = i==selected_ ? TFT_BLUE : TFT_BLACK;
-            Ui::canvas().fillRect(4, y - 1, 232, 14, bg);
-            Ui::canvas().setTextColor(TFT_WHITE, bg);
-            Ui::canvas().drawString(names[i], 10, y + 1);
+            const int column = i % 2;
+            const int row = i / 2;
+            const int x = column == 0 ? 5 : 122;
+            const int y = 34 + row * 28;
+            const bool active = i == selected_;
+            const uint16_t bg = active ? Ui::selected() : Ui::surface();
+            Ui::canvas().fillRoundRect(x, y, 113, 23, 4, bg);
+            Ui::canvas().drawRoundRect(x, y, 113, 23, 4, active ? Ui::accent() : Ui::surfaceAlt());
+            Ui::canvas().setTextColor(active ? Ui::accent() : Ui::info(), bg);
+            Ui::canvas().drawString(marks[i], x + 6, y + 7);
+            Ui::canvas().setTextColor(Ui::text(), bg);
+            Ui::canvas().drawString(names[i], x + 31, y + 7);
         }
         Ui::footer("W/S: select   Enter: open");
     }
@@ -143,65 +152,67 @@ private:
             for(uint8_t row=0;row<12;++row) Ui::line(22+row*8,SshService::terminalRow(row));
         } else if(SshService::wifiReady()) {
             char row[44];
-            Ui::line(28,"Wi-Fi connected",TFT_GREEN);
+            Ui::line(28,"Wi-Fi connected",Ui::success());
             snprintf(row,sizeof(row),"SSID: %.25s",SshService::wifiSsid()); Ui::line(42,row);
             snprintf(row,sizeof(row),"IP: %.15s",SshService::wifiIp()); Ui::line(56,row);
             snprintf(row,sizeof(row),"GW: %.15s",SshService::wifiGateway()); Ui::line(70,row);
             snprintf(row,sizeof(row),"Mask: %.15s",SshService::wifiSubnet()); Ui::line(84,row);
             snprintf(row,sizeof(row),"DNS: %.15s  RSSI:%ld",SshService::wifiDns(),static_cast<long>(SshService::wifiSignal())); Ui::line(98,row);
-            Ui::line(112,"I: SSH login",TFT_YELLOW);
+            Ui::line(112,"I: SSH login",Ui::warning());
         } else {
             if(SshService::awaitingTrust()) {
-                Ui::line(30,SshService::status(),TFT_CYAN);
+                Ui::line(30,SshService::status(),Ui::info());
                 char part[33];
                 memcpy(part,SshService::fingerprint(),32); part[32]=0; Ui::line(52,part);
                 memcpy(part,SshService::fingerprint()+32,32); part[32]=0; Ui::line(64,part);
-                Ui::line(88,"T: trust this host and save",TFT_YELLOW);
+                Ui::line(88,"T: trust this host and save",Ui::warning());
             } else if(SshService::view()==1) {
                 const uint8_t count=SshService::wifiCount();
                 if(!count) {
-                    Ui::line(32,SshService::status(),TFT_CYAN);
+                    Ui::line(32,SshService::status(),Ui::info());
                     Ui::line(58,"C: scan again   H: saved");
                 } else {
                     for(uint8_t i=0;i<count && i<8;++i) {
                         const int y=22+i*12;
                         const bool selected=i==SshService::wifiSelected();
-                        const uint16_t bg=selected?TFT_BLUE:TFT_BLACK;
-                        Ui::canvas().fillRect(3,y-1,234,11,bg);
+                        const uint16_t bg=selected?Ui::selected():Ui::surface();
+                        Ui::canvas().fillRoundRect(3,y-1,234,11,2,bg);
+                        if (selected) Ui::canvas().drawRoundRect(3,y-1,234,11,2,Ui::accent());
                         char row[40];
                         snprintf(row,sizeof(row),"%c %-21.21s %4ld%c",selected?'>':' ',SshService::wifiName(i),static_cast<long>(SshService::wifiRssi(i)),SshService::wifiSecured(i)?'*':' ');
-                        Ui::canvas().setTextColor(TFT_WHITE,bg); Ui::canvas().drawString(row,6,y);
+                        Ui::canvas().setTextColor(Ui::text(),bg); Ui::canvas().drawString(row,6,y);
                     }
                 }
             } else if(SshService::view()==2) {
                 const uint8_t count=SshService::savedCount();
                 if(!count) {
-                    Ui::line(32,SshService::status(),TFT_CYAN);
+                    Ui::line(32,SshService::status(),Ui::info());
                     Ui::line(58,"C: scan Wi-Fi   D: SD config");
                 } else {
                     for(uint8_t i=0;i<count && i<6;++i) {
                         const int y=22+i*12;
                         const bool selected=i==SshService::savedSelected();
-                        const uint16_t bg=selected?TFT_BLUE:TFT_BLACK;
-                        Ui::canvas().fillRect(3,y-1,234,11,bg);
+                        const uint16_t bg=selected?Ui::selected():Ui::surface();
+                        Ui::canvas().fillRoundRect(3,y-1,234,11,2,bg);
+                        if (selected) Ui::canvas().drawRoundRect(3,y-1,234,11,2,Ui::accent());
                         char row[48];
                         snprintf(row,sizeof(row),"%c %-15.15s %.19s",selected?'>':' ',SshService::savedSsid(i),SshService::savedTarget(i));
-                        Ui::canvas().setTextColor(TFT_WHITE,bg); Ui::canvas().drawString(row,6,y);
+                        Ui::canvas().setTextColor(Ui::text(),bg); Ui::canvas().drawString(row,6,y);
                     }
                 }
             } else if(SshService::enteringPassword()) {
-                Ui::line(30,SshService::status(),TFT_CYAN);
+                Ui::line(30,SshService::status(),Ui::info());
                 char ssid[32]; snprintf(ssid,sizeof(ssid),"Wi-Fi: %.25s",SshService::passwordSsid());
                 Ui::line(50,ssid);
-                Ui::line(70,"Password:"); Ui::line(88,SshService::passwordDisplay(),TFT_YELLOW);
+                Ui::line(70,"Password:"); Ui::line(88,SshService::passwordDisplay(),Ui::warning());
                 Ui::line(104,"Enter: connect  Backspace: edit");
             } else if(SshService::editingSsh()) {
-                Ui::line(30,SshService::status(),TFT_CYAN);
+                Ui::line(30,SshService::status(),Ui::info());
                 Ui::line(50,SshService::sshFieldName());
-                Ui::line(72,SshService::sshEditDisplay(),TFT_YELLOW);
+                Ui::line(72,SshService::sshEditDisplay(),Ui::warning());
                 Ui::line(104,"Enter: next/connect  Backspace: edit");
             } else {
-                Ui::line(30,SshService::status(),TFT_CYAN);
+                Ui::line(30,SshService::status(),Ui::info());
                 Ui::line(58,"C: scan Wi-Fi   H: saved");
                 Ui::line(76,"D: connect SD config");
                 Ui::line(94,"I: SSH login   E: edit Wi-Fi");
@@ -212,27 +223,27 @@ private:
     void drawKeyboard() {
         Ui::header("Keyboard");
         if(diagnostics_) {
-            Ui::line(30,BleKeyboardService::status(),TFT_CYAN);
+            Ui::line(30,BleKeyboardService::status(),Ui::info());
             Ui::line(52,BleKeyboardService::diagnostic());
             Ui::line(72,BleKeyboardService::counters());
             Ui::line(96,"Fn+R: clear all BLE pairings");
         } else {
-            char text[40]; snprintf(text,sizeof(text),"Send to: %s",KeyboardManager::modeName()); Ui::line(30,text,TFT_CYAN);
+            char text[40]; snprintf(text,sizeof(text),"Send to: %s",KeyboardManager::modeName()); Ui::line(30,text,Ui::info());
             Ui::line(48,UsbKeyboardService::connected()?"USB: connected":"USB: not connected");
-            Ui::line(66,BleKeyboardService::status(),KeyboardManager::bleConnected()?TFT_GREEN:TFT_YELLOW);
+            Ui::line(66,BleKeyboardService::status(),KeyboardManager::bleConnected()?Ui::success():Ui::warning());
             Ui::line(86,"Pair: Cardputer Hub N2");
             Ui::line(104,"Fn+M: mode   Fn+D: details");
         }
         Ui::footer("Fn+Q: home   Opt: Win/Cmd");
     }
     void drawIr() {
-        Ui::header("IR Remote"); Ui::line(24,IrRemote::profileName(),TFT_CYAN);
+        Ui::header("IR Remote"); Ui::line(24,IrRemote::profileName(),Ui::info());
         for(uint8_t i=0;i<IrRemote::buttonCount();++i) {
             char text[24]; snprintf(text,sizeof(text),"%u %.10s",i+1,IrRemote::buttonLabel(i));
-            Ui::canvas().setTextColor(TFT_WHITE,TFT_BLACK);
+            Ui::canvas().setTextColor(Ui::text(),Ui::background());
             Ui::canvas().drawString(text,(i%3)*80+5,44+(i/3)*18);
         }
-        Ui::line(104,IrRemote::status(),TFT_YELLOW);
+        Ui::line(104,IrRemote::status(),Ui::warning());
         Ui::footer("N: device  R: reload  Fn+Q:home");
     }
     void drawSettings() {
@@ -241,14 +252,14 @@ private:
         snprintf(text,sizeof(text),"Volume       %u %%",AppSettings::volume()); Ui::item(1,text,setting_==1);
         snprintf(text,sizeof(text),"MJPEG speed  %u fps",AppSettings::videoFps()); Ui::item(2,text,setting_==2);
         snprintf(text,sizeof(text),"USB SD sharing  %s >",UsbStorageService::hostActive()?"ON":"OFF"); Ui::item(3,text,setting_==3);
-        snprintf(text,sizeof(text),"SD: %s   Free RAM: %uK",Storage::available()?"ready":"absent",ESP.getFreeHeap()/1024); Ui::line(104,text,TFT_CYAN);
+        snprintf(text,sizeof(text),"SD: %s   Free RAM: %uK",Storage::available()?"ready":"absent",ESP.getFreeHeap()/1024); Ui::line(104,text,Ui::info());
         Ui::footer(setting_==3?"Enter:open USB SD  Fn+Q:home":"W/S:select +/-:change Fn+Q:home");
     }
     void drawUsbStorage() {
         Ui::header("USB SD sharing");
-        Ui::line(28,UsbStorageService::status(),UsbStorageService::hostActive()?TFT_GREEN:TFT_CYAN);
+        Ui::line(28,UsbStorageService::status(),UsbStorageService::hostActive()?Ui::success():Ui::info());
         if(confirmUsbStop_) {
-            Ui::line(50,"Eject SD on computer first",TFT_YELLOW);
+            Ui::line(50,"Eject SD on computer first",Ui::warning());
             Ui::line(70,"Then Y: stop sharing");
             Ui::line(90,"N: keep sharing");
         } else if(UsbStorageService::hostActive()) {
