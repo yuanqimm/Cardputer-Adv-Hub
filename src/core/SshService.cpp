@@ -15,7 +15,9 @@
 namespace {
 enum class State { Idle, Scanning, Password, SshEdit, Wifi, WifiReady, Connect, Verify, Trust, Authenticate, Open, Pty, Shell, Ready, Error };
 enum class Browser { None, Wifi, Saved };
-constexpr uint8_t MaxWifi = 8;
+// Keep every distinct SSID returned by the asynchronous scan. The UI shows a
+// seven-row window and scrolls around the selected entry.
+constexpr uint8_t MaxWifi = 64;
 constexpr uint8_t MaxSaved = 6;
 struct WifiEntry { String ssid; int32_t rssi = 0; bool secured = false; uint8_t auth = WIFI_AUTH_OPEN; };
 struct Profile {

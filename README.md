@@ -17,7 +17,7 @@ platformio device monitor --port COM17 --baud 115200
 
 | 页面 | 操作 |
 |---|---|
-| 启动器 | W/S、K/J 或 Fn 方向键选择，Enter 进入 |
+| 启动器 | W/S、K/J 或 Fn 方向键选择；主页双列卡片支持 Fn+方向键上下左右移动，Enter 进入 |
 | 全部页面 | **Fn+Q 返回首页**；文本未保存时先确认；离开 SSH 会断开 SSH 会话但保留 Wi-Fi，离开媒体会停止播放；顶部三格图标表示 Wi-Fi 已连接，叉号表示未连接 |
 | Keyboard | Fn+M 切换 USB / Bluetooth / 双发，Fn+D 查看诊断，Fn+R 清除全部 BLE 配对 |
 | SSH | C 扫描附近 Wi-Fi，W/S 或 Fn 方向键选择，Enter 连接；陌生加密网络会进入密码输入框；Wi-Fi 成功后停留在网络信息页，显示 SSID、IP、网关、子网掩码、DNS 和信号强度；按 I 才进入 SSH 主机/IP、用户名、密码输入；H 打开已保存配置；D 使用 SD 配置；E 重新输入当前 Wi-Fi 密码；首次遇到主机时校验指纹后按 T 信任并保存 |
@@ -88,7 +88,7 @@ python tools/convert_video.py input.mp4 output.mjpeg --fps 12
 {"host":"192.168.1.10","port":22,"user":"YOUR_SSH_USER","password":"YOUR_SSH_PASSWORD"}
 ```
 
-进入 SSH 页面后按 C 会异步扫描附近 Wi-Fi，列表显示 SSID、信号强度和加密标记；扫描不会阻塞界面。选择网络后按 Enter 连接。开放网络可以直接使用，历史中已有密码的网络会自动取用；陌生的加密网络会在屏幕上输入密码，按 Enter 开始连接，Backspace 删除，Fn+Q 取消。密码输入符合 WPA-PSK 的 8–63 个字符或 64 位十六进制格式。
+进入 SSH 页面后按 C 会异步扫描附近 Wi-Fi，列表保留最多 64 个不同 SSID，显示 SSID、信号强度和加密标记，并按当前选中项滚动；扫描不会阻塞界面。选择网络后按 Enter 连接。开放网络可以直接使用，历史中已有密码的网络会自动取用；陌生的加密网络会在屏幕上输入密码，按 Enter 开始连接，Backspace 删除，Fn+Q 取消。密码输入符合 WPA-PSK 的 8–63 个字符或 64 位十六进制格式。
 
 Wi-Fi 连接成功后会停在网络信息页，显示 SSID、IP 地址、网关、子网掩码、DNS 和 RSSI。按 **I** 才进入 SSH 登录输入：先输入主机名/IP，Enter 后输入用户名，再输入 SSH 密码，最后按 Enter 开始非阻塞握手。重启后 Wi-Fi 自动恢复也只显示网络信息，不会自动打开上次 SSH 终端。主机端口默认 22；需要修改时仍可使用 `ssh.json` 的 `port` 字段。认证成功后才保存这条完整配置。
 

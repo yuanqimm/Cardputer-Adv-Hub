@@ -48,8 +48,10 @@ public:
         if(screen_==1 && SshService::enteringPassword()) { SshService::editPassword(e); return; }
         if(screen_==1 && SshService::editingSsh()) { SshService::editSsh(e); return; }
         if(screen_==0) {
-            if(up(e,key)) selected_=(selected_+5)%6;
-            else if(down(e,key)) selected_=(selected_+1)%6;
+            if(up(e,key)) selected_ = selected_ >= 2 ? selected_ - 2 : selected_ + 4;
+            else if(down(e,key)) selected_ = selected_ < 4 ? selected_ + 2 : selected_ - 4;
+            else if(left(e,key) && selected_ % 2) --selected_;
+            else if(right(e,key) && !(selected_ % 2) && selected_ + 1 < 6) ++selected_;
             else if(e.key=='\n' && !e.repeat) { const uint8_t pages[] = {1,2,3,4,5,7}; enter(pages[selected_]); }
             return;
         }
@@ -108,6 +110,8 @@ private:
     bool confirmUsbStop_=false;
     static bool up(const InputEvent& e,char key) { return e.code==0x52 || key=='w' || key=='k'; }
     static bool down(const InputEvent& e,char key) { return e.code==0x51 || key=='s' || key=='j'; }
+    static bool left(const InputEvent& e,char key) { return e.code==0x50 || key=='a'; }
+    static bool right(const InputEvent& e,char key) { return e.code==0x4f || key=='d'; }
     void home() {
         if(screen_==1) SshService::disconnect();
         if(screen_==4) SdStorage::end();
@@ -172,9 +176,18 @@ private:
                     Ui::line(32,SshService::status(),Ui::info());
                     Ui::line(58,"C: scan again   H: saved");
                 } else {
-                    for(uint8_t i=0;i<count && i<8;++i) {
-                        const int y=22+i*12;
-                        const bool selected=i==SshService::wifiSelected();
+                    constexpr uint8_t visible = 7;
+                    const uint8_t current = SshService::wifiSelected();
+                    const uint8_t start = count <= visible ? 0 :
+                        (current > visible / 2 && current + visible / 2 < count) ? current - visible / 2 :
+                        (current + visible / 2 >= count ? count - visible : 0);
+                    char summary[40];
+                    snprintf(summary,sizeof(summary),"Wi-Fi networks  %u / %u",static_cast<unsigned>(current+1),static_cast<unsigned>(count));
+                    Ui::line(22,summary,Ui::info());
+                    for(uint8_t rowIndex=0;rowIndex<visible && start+rowIndex<count;++rowIndex) {
+                        const uint8_t i = start + rowIndex;
+                        const int y=34+rowIndex*12;
+                        const bool selected=i==current;
                         const uint16_t bg=selected?Ui::selected():Ui::surface();
                         Ui::canvas().fillRoundRect(3,y-1,234,11,2,bg);
                         if (selected) Ui::canvas().drawRoundRect(3,y-1,234,11,2,Ui::accent());
@@ -218,7 +231,7 @@ private:
                 Ui::line(94,"I: SSH login   E: edit Wi-Fi");
             }
         }
-        Ui::footer("C scan H history Fn+Q home");
+        Ui::footer(SshService::view()==1 ? "W/S:scroll Enter:connect C:scan" : "C scan H history Fn+Q home");
     }
     void drawKeyboard() {
         Ui::header("Keyboard");
