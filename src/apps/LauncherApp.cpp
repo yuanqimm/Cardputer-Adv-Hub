@@ -73,6 +73,7 @@ public:
         if(screen_==3 && !e.repeat) {
             if(key>='1' && key<='9') IrRemote::sendButton(key-'1');
             if(key=='n') IrRemote::nextProfile();
+            if(key=='b') IrRemote::previousProfile();
             if(key=='r') IrRemote::loadProfile();
         } else if(screen_==5) {
             if(up(e,key)) setting_=(setting_+3)%4;
@@ -250,14 +251,26 @@ private:
         Ui::footer("Fn+Q: home   Opt: Win/Cmd");
     }
     void drawIr() {
-        Ui::header("IR Remote"); Ui::line(24,IrRemote::profileName(),Ui::info());
-        for(uint8_t i=0;i<IrRemote::buttonCount();++i) {
-            char text[24]; snprintf(text,sizeof(text),"%u %.10s",i+1,IrRemote::buttonLabel(i));
-            Ui::canvas().setTextColor(Ui::text(),Ui::background());
-            Ui::canvas().drawString(text,(i%3)*80+5,44+(i/3)*18);
+        Ui::header("IR Remote");
+        char device[40];
+        snprintf(device,sizeof(device),"Device %u/%u  %.20s",
+            static_cast<unsigned>(IrRemote::profileIndex()+1),
+            static_cast<unsigned>(IrRemote::profileCount()), IrRemote::profileName());
+        Ui::line(24,device,Ui::info());
+        char protocol[40];
+        if (strcmp(IrRemote::protocolName(), "RAW") == 0) {
+            snprintf(protocol,sizeof(protocol),"RAW  %ukHz",static_cast<unsigned>(IrRemote::profileFrequency()));
+        } else {
+            snprintf(protocol,sizeof(protocol),"%s  Addr:0x%X",IrRemote::protocolName(),IrRemote::profileAddress());
         }
-        Ui::line(104,IrRemote::status(),Ui::warning());
-        Ui::footer("N: device  R: reload  Fn+Q:home");
+        Ui::line(37,protocol,Ui::muted());
+        for(uint8_t i=0;i<IrRemote::buttonCount();++i) {
+            char text[24]; snprintf(text,sizeof(text),"%u %.12s",i+1,IrRemote::buttonLabel(i));
+            Ui::canvas().setTextColor(Ui::text(),Ui::background());
+            Ui::canvas().drawString(text,(i%3)*80+5,49+(i/3)*16);
+        }
+        Ui::line(103,IrRemote::status(),Ui::warning());
+        Ui::footer("B/N: device  R: reload  Fn+Q:home");
     }
     void drawSettings() {
         Ui::header("Settings"); char text[48];

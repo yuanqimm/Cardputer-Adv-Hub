@@ -27,7 +27,7 @@
 | 页面、快捷键 | src/apps/LauncherApp.cpp、src/apps/Recorder.cpp | 主页六项双列卡片支持四方向，Settings 固定最后；Recorder 为 screen 7，USB SD 位于 Settings 页面第四项，独立页面 screen 6 |
 | 键盘 | KeyboardManager / UsbKeyboardService / BleKeyboardService | 用户曾确认 USB、Win11 BLE 和小米 14 N2 成功；完整键位回归清单保留 |
 | Wi-Fi / SSH | src/core/SshService.cpp | 扫描最多保留 64 个不同 SSID 并滚动显示、密码输入、NVS 记忆、Wi-Fi 信息页、手动 SSH 登录、主机指纹和交互终端已实现；完整真实服务器验收见验证文档 |
-| 红外 | src/core/IrRemote.cpp | GPIO44 发射，多设备 JSON；真实协议/地址/命令需设备验收；学习需外接接收器 |
+| 红外 | src/core/IrRemote.cpp | GPIO44 发射，多设备 JSON；支持 NEC/Samsung/Sony/RC5/LG/JVC/Panasonic/Denon/Sharp 与 RAW 时序；真实协议/地址/命令需设备验收；学习需外接接收器 |
 | SD Storage | src/apps/SdStorage.cpp、src/core/FileManager.cpp | 多级目录、文件读写/复制/移动/删除/属性、4 KiB 文本编辑；64 项分页；新功能待实机验收 |
 | 音视频 | src/media | 从任意文件夹打开 MP3/WAV、JPEG/PNG/BMP/原始 MJPEG；不直接支持 MP4/H.264，播放器完整实测尚待记录 |
 | USB SD | src/core/UsbStorageService.cpp | 2026-09-26 用户确认手动共享功能完成 |

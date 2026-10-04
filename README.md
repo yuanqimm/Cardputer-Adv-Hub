@@ -112,7 +112,7 @@ Fn+D 诊断页：Last 是最近的断开码或建链失败码，Auth 是加密�
 
 ## 红外遥控
 
-内置 GPIO44 红外发射，支持 NEC、Samsung、Sony、RC5。必须使用与目标设备匹配的协议、地址和命令；示例中的 Demo NEC 并非通用遥控码。没有内置接收器，学习原遥控器需要外接接收模块。
+内置 GPIO44 红外发射，支持 NEC、Samsung、Sony、RC5、LG、JVC、Panasonic、Denon、Sharp 和 RAW 时序码。必须使用与目标设备匹配的协议、地址和命令；示例中的 Demo NEC 并非通用遥控码。Cardputer-Adv 没有内置红外接收器，学习原遥控器需要外接 38 kHz 接收模块；本项目当前提供发射和配置回放，不把开发板本身当作学习器。
 
 `/config/ir.json` 可以是一个设备对象，或最多 8 个设备的数组；每个设备最多 9 个按键：
 
@@ -132,7 +132,23 @@ Fn+D 诊断页：Last 是最近的断开码或建链失败码，Auth 是加密�
 ]
 ```
 
-数字支持十进制整数或 `0x` 字符串。NEC 命令为 8 位，Samsung 为 16 位；Sony/RC5 命令为 7 位，RC5 地址为 5 位。Sony 的 `bits` 可取 12、15、20，对应地址上限 31、255、8191。`repeats` 为 0–3。配置文件最大 16 KiB，无效配置保留原有效配置。兼容旧 `buttons.power / vol_minus / vol_plus` 格式。
+数字支持十进制整数或 `0x` 字符串。NEC/Samsung/LG 命令可使用 16 位，Sony/RC5 命令为 7 位，RC5 地址为 5 位；JVC、Panasonic、Denon、Sharp 使用 8 位命令。Sony 的 `bits` 可取 12、15、20，对应地址上限 31、255、8191。`repeats` 为 0–3。配置文件最大 16 KiB，无效配置保留原有效配置。兼容旧 `buttons.power / vol_minus / vol_plus` 格式。
+
+对于空调、机顶盒等库中没有合适协议的设备，可使用 IRremote 的原始微秒时序。`frequency` 为 30–60 kHz，`raw` 每项为 100–65535 微秒，单个按键最多 160 项：
+
+```json
+{
+  "name":"Unknown remote",
+  "protocol":"RAW",
+  "frequency":38,
+  "repeats":1,
+  "buttons":[
+    {"label":"Power","raw":[9000,4500,560,560,560,1690,560,560]}
+  ]
+}
+```
+
+红外页面使用数字键 1–9 发射按键，`N`/`B` 切换下一个/上一个设备，`R` 重新读取配置。RAW 重复帧之间会等待约 110 ms；原始码总量受 16 KiB 配置上限和设备无 PSRAM 的内存限制。
 
 ## 验证与目录
 
