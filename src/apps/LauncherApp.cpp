@@ -52,7 +52,7 @@ public:
             else if(down(e,key)) selected_ = selected_ < 4 ? selected_ + 2 : selected_ - 4;
             else if(left(e,key) && selected_ % 2) --selected_;
             else if(right(e,key) && !(selected_ % 2) && selected_ + 1 < 6) ++selected_;
-            else if(e.key=='\n' && !e.repeat) { const uint8_t pages[] = {1,2,3,4,5,7}; enter(pages[selected_]); }
+            else if(e.key=='\n' && !e.repeat) { const uint8_t pages[] = {1,2,3,4,7,5}; enter(pages[selected_]); }
             return;
         }
         if((key=='q' || e.key=='\b') && !e.repeat) { home(); return; }
@@ -132,8 +132,8 @@ private:
     void drawHome() {
         Ui::header("Cardputer Adv Hub");
         Ui::line(21, "QUICK ACCESS", Ui::muted());
-        const char* names[]={"SSH Terminal","Keyboard","IR Remote","SD Storage","Settings","Recorder"};
-        const char* marks[]={">_", "KB", "IR", "SD", "CFG", "REC"};
+        const char* names[]={"SSH Terminal","Keyboard","IR Remote","SD Storage","Recorder","Settings"};
+        const char* marks[]={">_", "KB", "IR", "SD", "REC", "CFG"};
         for(int i=0;i<6;++i) {
             const int column = i % 2;
             const int row = i / 2;

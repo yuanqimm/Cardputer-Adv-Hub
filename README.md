@@ -27,7 +27,7 @@ platformio device monitor --port COM17 --baud 115200
 | 文本 | Enter 查看，E 编辑，Fn 方向键移动光标，Ctrl+S 保存；Esc 退出编辑，修改未保存时 Y 放弃/N 继续 |
 | 音频/视频 | 从文件列表 Enter 打开；P/空格暂停或继续，音频 +/- 音量；Backspace 返回文件列表，播放到尾停止 |
 | 红外 | 1–9 发射对应按键，N 切换设备，R 重载配置 |
-| 设置 | W/S 选择，+/- 或 Fn 左右方向键调整；亮度、音量、视频帧率自动保存 |
+| 设置（主页最后一项） | W/S 选择，+/- 或 Fn 左右方向键调整；亮度、音量、视频帧率自动保存 |
 | USB SD sharing | Settings 第四项，Enter 打开页面，再 Enter 开启；默认 OFF；电脑安全弹出后自动关闭，Fn+Q 返回主页保留当前状态 |
 
 键盘映射：Fn+`;` 上、Fn+`.` 下、Fn+`,` 左、Fn+`/` 右、Fn+反引号 Escape、Fn+Backspace Delete。Opt 映射 Win/Command。USB 支持保持按键直至实际松开，主机负责长按重复；SSH 与菜单支持本地重复。

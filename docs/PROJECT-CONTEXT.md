@@ -24,7 +24,7 @@
 
 | 功能 | 入口 | 状态 |
 |---|---|---|
-| 页面、快捷键 | src/apps/LauncherApp.cpp、src/apps/Recorder.cpp | 主页六项双列卡片支持四方向；Recorder 为 screen 7，USB SD 位于 Settings 第四项，独立页面 screen 6 |
+| 页面、快捷键 | src/apps/LauncherApp.cpp、src/apps/Recorder.cpp | 主页六项双列卡片支持四方向，Settings 固定最后；Recorder 为 screen 7，USB SD 位于 Settings 页面第四项，独立页面 screen 6 |
 | 键盘 | KeyboardManager / UsbKeyboardService / BleKeyboardService | 用户曾确认 USB、Win11 BLE 和小米 14 N2 成功；完整键位回归清单保留 |
 | Wi-Fi / SSH | src/core/SshService.cpp | 扫描最多保留 64 个不同 SSID 并滚动显示、密码输入、NVS 记忆、Wi-Fi 信息页、手动 SSH 登录、主机指纹和交互终端已实现；完整真实服务器验收见验证文档 |
 | 红外 | src/core/IrRemote.cpp | GPIO44 发射，多设备 JSON；真实协议/地址/命令需设备验收；学习需外接接收器 |
