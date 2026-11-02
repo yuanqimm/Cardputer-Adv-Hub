@@ -260,26 +260,32 @@ bool onInput(const InputEvent& event) {
 }
 
 void draw() {
-    Ui::header("Recorder");
+    Ui::header("Recorder",Ui::Icon::Recorder,state == State::Recording);
     const uint32_t seconds = elapsedMs() / 1000;
     char row[40];
-    snprintf(row, sizeof(row), "Time %02lu:%02lu", static_cast<unsigned long>(seconds / 60), static_cast<unsigned long>(seconds % 60));
-    Ui::line(24, row, Ui::info());
+    snprintf(row, sizeof(row), "%02lu:%02lu", static_cast<unsigned long>(seconds / 60), static_cast<unsigned long>(seconds % 60));
+    Ui::label(8,38,120,row,Ui::text(),Ui::background(),2);
     const char* stateName = state == State::Recording ? "Recording" : state == State::Paused ? "Paused" : state == State::Playing ? "Playing" : state == State::Saved ? "Saved" : state == State::Error ? "Error" : "Ready";
-    Ui::line(40, stateName, state == State::Error ? Ui::danger() : state == State::Recording ? Ui::danger() : Ui::success());
+    Ui::label(136,44,96,stateName,state == State::Error ? Ui::danger() : state == State::Recording ? Ui::accent() : Ui::warning(),Ui::background());
     if (savedPath[0]) {
         const char* name = strrchr(savedPath, '/');
         snprintf(row, sizeof(row), "File: %.28s", name ? name + 1 : savedPath);
-        Ui::line(51, row, Ui::text());
-    }
-    Ui::panel(7, 59, 226, 46, Ui::surface());
-    Ui::canvas().drawRoundRect(7, 59, 226, 46, 4, Ui::surfaceAlt());
+        Ui::line(23, row, Ui::text());
+    } else Ui::line(23,"/recordings  WAV / 16kHz",Ui::muted());
+    Ui::panel(7, 61, 226, 45, Ui::surface());
     for (size_t i = 0; i < SpectrumBars; ++i) {
-        const int height = spectrum[i];
-        Ui::canvas().fillRoundRect(10 + static_cast<int>(i) * 9, 103 - height, 6, height, 2, state == State::Playing ? Ui::info() : Ui::accent());
+        const int height = std::max(1,std::min(38,static_cast<int>(spectrum[i])));
+        const uint16_t color = state == State::Recording ? Ui::accent() : state == State::Playing ? Ui::text() : Ui::surfaceAlt();
+        Ui::canvas().fillRect(12 + static_cast<int>(i) * 9, 102 - height, 5, height, color);
     }
-    Ui::line(109, message, Ui::warning());
-    Ui::footer("Enter:go  P:pause  V:play  S:save");
+    Ui::line(110, message, Ui::muted());
+    switch (state) {
+    case State::Recording: Ui::footer("P:pause  S:save  Fn+Q:home"); break;
+    case State::Paused: Ui::footer("Enter:resume  V:play  S:save"); break;
+    case State::Playing: Ui::footer("P:stop preview  Fn+Q:home"); break;
+    case State::Saved: Ui::footer("Enter:new  V:play  Fn+Q:home"); break;
+    default: Ui::footer("Enter:record  Fn+Q:home"); break;
+    }
 }
 
 bool dirty() { const bool result = changed; changed = false; return result; }

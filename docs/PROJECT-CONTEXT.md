@@ -32,7 +32,7 @@
 | 音视频 | src/media | 从任意文件夹打开 MP3/WAV、JPEG/PNG/BMP/原始 MJPEG；不直接支持 MP4/H.264，播放器完整实测尚待记录 |
 | USB SD | src/core/UsbStorageService.cpp | 2026-09-26 用户确认手动共享功能完成 |
 | Recorder | src/apps/Recorder.cpp | 16 kHz WAV 流式录音、频谱、暂停/试听/保存；待开发板验收 |
-| 显示 | src/core/Ui.cpp | 240×135、8 位帧缓冲和内容哈希抑制重复刷屏；深炭灰/橙色/青蓝主题，用户确认闪烁已解决 |
+| 显示 | src/core/Ui.cpp | 已采用用户选定的A方案：石墨黑/银白/实心橙色卡片、线图标、限宽标签和滚动条；保留240×135、8位帧缓冲和内容哈希防闪烁，细节见ui-theme-a.md |
 
 ## USB SD 已接受的行为
 
@@ -62,6 +62,8 @@
 - 保持帧缓冲防闪烁策略，不因普通按键无条件刷新屏幕。
 
 ## 构建和验证
+
+最新交付为用户选定的 A 方案 UI，见 ui-theme-a.md。PlatformIO 构建通过（RAM 90628、Flash 1619917 字节），两套原生测试及 21 个本地绘图快照检查通过，COM12 烧录及哈希校验成功。上传后仍枚举下载端口，已提示用户不按 G0 正常重新插拔；尚未确认新版正常启动与实机显示。以下较早交付记录保留历史语境。
 
 ```powershell
 platformio run

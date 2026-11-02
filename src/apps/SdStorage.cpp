@@ -22,7 +22,7 @@ bool selectedDirectory = false, cut = false, modified = false, discardHome = fal
 bool active = false, wasAccessible = true;
 uint32_t selectedSize = 0;
 size_t selected = 0, menuItem = 0, cursor = 0, textScroll = 0;
-constexpr size_t Rows = 6, Columns = 38;
+constexpr size_t Rows = 5, Columns = 38;
 const char* actions[] = {"Open / Play", "Rename", "Copy", "Cut / Move", "Delete", "New folder", "New text file", "Paste here", "Properties"};
 constexpr size_t ActionCount = sizeof(actions)/sizeof(actions[0]);
 bool accessible() { return Storage::available() && Storage::appAccessAllowed(); }
@@ -131,7 +131,7 @@ void showText() {
         const unsigned char c = i == text.length() ? ' ' : static_cast<unsigned char>(text[i]);
         if (visible && (caret || (c != '\n' && c != '\r'))) {
             const int x = 6+col*6, y = 36+(line-textScroll)*8;
-            canvas.setTextColor(caret ? Ui::background() : Ui::text(), caret ? Ui::info() : Ui::background());
+            canvas.setTextColor(caret ? Ui::onSelected() : Ui::text(), caret ? Ui::accent() : Ui::background());
             char glyph[2] = {static_cast<char>(c >= 32 && c <= 126 ? c : (c == '\t' || c == '\n' || c == '\r' ? ' ' : '?')), 0};
             canvas.drawString(glyph, x, y);
         }
@@ -173,16 +173,19 @@ void browserRows() {
     const size_t top = selected / Rows * Rows;
     for (size_t row=0; row<Rows && top+row<count; ++row) {
         const size_t index = top+row;
-        const int y = 36+row*12;
-        const uint16_t bg = selected == index ? Ui::selected() : Ui::surface();
-        Ui::canvas().fillRoundRect(4,y-1,232,12,2,bg);
-        if (selected == index) Ui::canvas().drawRoundRect(4,y-1,232,12,2,Ui::accent());
-        Ui::canvas().setTextColor(Ui::text(),bg);
-        char label[40];
-        if (index == entries.size()) snprintf(label,sizeof(label),"[More files...]");
-        else snprintf(label,sizeof(label),"%s %.30s",entries[index].directory?"[DIR]":"     ",entries[index].name.c_str());
-        Ui::canvas().drawString(label,6,y);
+        const int y = 36+row*14;
+        const bool focus = selected == index;
+        const uint16_t bg = focus ? Ui::selected() : Ui::surface(), fg = focus ? Ui::onSelected() : Ui::text();
+        Ui::card(4,y-1,229,13,focus);
+        const bool more = index == entries.size();
+        const bool folder = !more && entries[index].directory;
+        if (folder) {
+            Ui::canvas().drawRect(9,y+3,9,6,focus?fg:Ui::accent());
+            Ui::canvas().drawLine(9,y+2,13,y+2,focus?fg:Ui::accent());
+        } else Ui::canvas().drawRect(10,y+2,6,8,fg);
+        Ui::label(24,y+2,204,more?"More files...":entries[index].name.c_str(),fg,bg);
     }
+    Ui::scrollBar(236,35,69,top,Rows,count);
 }
 }
 namespace SdStorage {
@@ -261,7 +264,11 @@ bool onInput(const InputEvent& e) {
     if (up(e,key) && count) selected = (selected+count-1)%count;
     else if (down(e,key) && count) selected = (selected+1)%count;
     else if (!e.repeat && e.key == '\n') openSelected();
-    else if (!e.repeat && (key == 'm')) { menuItem = 0; notice = ""; view = View::Menu; }
+    else if (!e.repeat && (key == 'm')) {
+        const auto& entries = FileManager::entries();
+        selectedName = selected < entries.size() ? entries[selected].name : String();
+        menuItem = 0; notice = ""; view = View::Menu;
+    }
     else if (!e.repeat && (e.key == '\b' || escape(e))) {
         if (directory == "/") return true;
         directory = FilePath::parent(directory.c_str()).c_str(); notice = ""; reload(true);
@@ -273,7 +280,7 @@ bool onInput(const InputEvent& e) {
     return false;
 }
 void draw() {
-    Ui::header("SD Storage");
+    Ui::header("SD Storage",Ui::Icon::Storage);
     if (!accessible()) {
         Ui::line(40,Storage::available()?"SD shared with computer":"No SD card",Ui::warning());
         Ui::line(62,Storage::available()?"Safely eject on PC first":"Insert FAT32 SD and reboot");
@@ -287,14 +294,16 @@ void draw() {
         Ui::line(111,notice.length()?notice.c_str():row,Ui::muted());
         Ui::footer("Enter:open M:menu BS:up R:refresh");
     } else if (view == View::Menu) {
+        Ui::header("File actions",Ui::Icon::File);
+        Ui::line(23,selectedName.isEmpty()?directory.c_str():selectedName.c_str(),Ui::muted());
         const size_t top = menuItem/Rows*Rows;
         for (size_t i=top; i<std::min(top+Rows,ActionCount); ++i) {
-            const int y = 28+(i-top)*14;
+            const int y = 38+(i-top)*14;
             const uint16_t bg = i == menuItem ? Ui::selected() : Ui::surface();
-            Ui::canvas().fillRoundRect(4,y-1,232,14,3,bg);
-            if (i == menuItem) Ui::canvas().drawRoundRect(4,y-1,232,14,3,Ui::accent());
-            Ui::canvas().setTextColor(Ui::text(),bg); Ui::canvas().drawString(actions[i],8,y);
+            Ui::card(4,y-1,229,13,i==menuItem);
+            Ui::label(10,y+2,216,actions[i],i==menuItem?Ui::onSelected():Ui::text(),bg);
         }
+        Ui::scrollBar(236,37,69,top,Rows,ActionCount);
         Ui::line(112,notice.c_str(),Ui::warning()); Ui::footer("W/S:select Enter:apply BS:back");
     } else if (view == View::Name) {
         Ui::line(28,nameAction==NameAction::Folder?"New folder name:":nameAction==NameAction::Text?"New text file (e.g. notes.txt):":"Rename to:",Ui::info());
@@ -310,24 +319,32 @@ void draw() {
         snprintf(row,sizeof(row),"%s  %lu bytes",selectedDirectory?"Folder":"File",static_cast<unsigned long>(selectedSize));
         Ui::line(84,row,Ui::info()); Ui::line(108,notice.c_str(),Ui::warning()); Ui::footer("Enter / BS: back");
     } else if (view == View::Text || view == View::Edit) {
+        Ui::header(view==View::Edit?"Text editor":"Text viewer",Ui::Icon::File);
         snprintf(row,sizeof(row),"%s%.32s",modified?"* ":"",selectedName.c_str()); Ui::line(22,row,Ui::info());
+        Ui::divider(32);
         showText(); Ui::line(111,notice.c_str(),Ui::warning());
         Ui::footer(view==View::Edit?"Ctrl+S:save Esc:back Arrows:cursor":"W/S:scroll E:edit BS:back");
     } else if (view == View::Audio) {
-        Ui::line(30,selectedName.substring(0,38).c_str(),Ui::info());
-        Ui::line(52,MediaPlayer::status(),Ui::success());
+        Ui::header("Audio",Ui::Icon::Audio);
+        Ui::line(24,selectedName.c_str());
+        Ui::panel(6,39,228,78);
+        Ui::label(13,46,214,MediaPlayer::status(),Ui::text(),Ui::surface());
         const uint32_t seconds = MediaPlayer::elapsedSeconds();
-        snprintf(row,sizeof(row),"%lu:%02lu  Vol:%u%%",static_cast<unsigned long>(seconds/60),static_cast<unsigned long>(seconds%60),MediaPlayer::volume()); Ui::line(75,row);
-        snprintf(row,sizeof(row),"File read: %u%%",MediaPlayer::progress()); Ui::line(92,row);
-        Ui::canvas().drawRoundRect(8,108,224,5,2,Ui::surfaceAlt()); Ui::canvas().fillRoundRect(9,109,222*MediaPlayer::progress()/100,3,1,Ui::accent());
+        snprintf(row,sizeof(row),"%lu:%02lu",static_cast<unsigned long>(seconds/60),static_cast<unsigned long>(seconds%60));
+        Ui::label(13,64,120,row,Ui::text(),Ui::surface(),2);
+        snprintf(row,sizeof(row),"VOL %u%%",MediaPlayer::volume()); Ui::label(150,69,77,row,Ui::muted(),Ui::surface());
+        snprintf(row,sizeof(row),"File read: %u%%",MediaPlayer::progress()); Ui::label(13,91,214,row,Ui::accent(),Ui::surface());
+        Ui::progress(13,106,214,MediaPlayer::progress());
         Ui::footer("P:pause/play +/-:volume BS:back");
     } else if (view == View::Video) {
+        Ui::line(23,selectedName.c_str());
         VideoPlayer::render();
-        if (!VideoPlayer::isPlaying()) Ui::line(110,VideoPlayer::status(),Ui::info());
+        Ui::line(110,VideoPlayer::status(),Ui::muted());
         Ui::footer("P:pause/play BS:files Fn+Q:home");
     } else if (view == View::Copy) {
         Ui::line(36,"Copying file...",Ui::info());
-        snprintf(row,sizeof(row),"%u%%",FileManager::progress()); Ui::line(60,row);
+        snprintf(row,sizeof(row),"%u%%",FileManager::progress()); Ui::label(8,53,100,row,Ui::text(),Ui::background(),2);
+        Ui::progress(8,76,224,FileManager::progress());
         Ui::line(84,"Keep SD inserted until finished"); Ui::footer("BS / Esc: cancel copy");
     }
 }

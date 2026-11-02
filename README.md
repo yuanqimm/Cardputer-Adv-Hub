@@ -1,6 +1,6 @@
 # Cardputer Adv Hub
 
-M5Stack Cardputer-Adv 的 SSH 终端、USB/BLE 双模键盘、红外遥控和 SD 文件管理中心。开发环境为 VS Code + PlatformIO + Arduino，保留后续 ESP-IDF + Arduino Component 的迁移路线。当前是逐步完善的固件，不把编译通过视作所有硬件功能已经实测。界面采用深炭灰底、头像同款橙色强调、青蓝信息色和暖黄提示色，保持 240×135 小屏上的高对比度和低刷新量。
+M5Stack Cardputer-Adv 的 SSH 终端、USB/BLE 双模键盘、红外遥控和 SD 文件管理中心。开发环境为 VS Code + PlatformIO + Arduino，保留后续 ESP-IDF + Arduino Component 的迁移路线。当前是逐步完善的固件，不把编译通过视作所有硬件功能已经实测。界面采用用户选定的 A 方案：石墨黑背景、银白文字、实心橙色选中卡片及线图标；保留 240×135 帧缓冲防闪烁。布局与验证说明见 [A方案实现](docs/ui-theme-a.md)。
 
 ## 编译和烧录
 

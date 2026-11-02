@@ -12,9 +12,10 @@ enum class ImageFormat { Jpeg, Png, Bmp };
 ImageFormat imageFormat = ImageFormat::Jpeg;
 uint32_t nextFrame = 0;
 constexpr size_t FrameCapacity = 40 * 1024;
-constexpr int ImageTop = 19;
+// Reserve the filename row and a status line; never paint over the footer.
+constexpr int ImageTop = 34;
 constexpr int ImageWidth = 240;
-constexpr int ImageHeight = 103;
+constexpr int ImageHeight = 73;
 std::unique_ptr<uint8_t[]> frame;
 size_t frameSize = 0;
 File stream;
@@ -118,14 +119,14 @@ bool dirty() { const bool result = changed; changed = false; return result; }
 const char* currentName() { return name; }
 const char* status() { return message; }
 void render() {
-    if (!Storage::appAccessAllowed()) { Ui::line(54, "USB computer is using SD", TFT_YELLOW); return; }
-    if (!validFrame) { Ui::line(54, message, TFT_YELLOW); return; }
+    if (!Storage::appAccessAllowed()) { Ui::line(54, "USB computer is using SD", Ui::warning()); return; }
+    if (!validFrame) { Ui::line(54, message, Ui::warning()); return; }
     const bool decoded = mjpeg ? drawJpeg(frame.get(), frameSize) : drawImageFile(path);
     if (!decoded) {
         validFrame = false;
         playing = false;
         mark(imageFormat == ImageFormat::Png ? "PNG decode failed" : imageFormat == ImageFormat::Bmp ? "BMP decode failed" : "JPEG decode failed; use baseline");
-        Ui::line(54, message, TFT_YELLOW);
+        Ui::line(54, message, Ui::warning());
     }
 }
 }
